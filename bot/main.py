@@ -1,4 +1,5 @@
 import os
+import asyncio
 import logging
 from dotenv import load_dotenv
 from telegram import Update, ReplyKeyboardMarkup
@@ -38,16 +39,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if chat_id in user_state:
         article_type = user_state.pop(chat_id)
         await update.message.reply_text(f"Пишу статью «{text}»... Подожди 1-2 минуты. ⏳")
-        result = orchestrator.generate_article(topic=text, article_type=article_type)
-        # Отправляем частями если длинная
+        try:
+            result = await asyncio.to_thread(
+                orchestrator.generate_article, topic=text, article_type=article_type
+            )
+        except Exception as e:
+            logging.exception("Ошибка генерации статьи")
+            await update.message.reply_text(f"❌ Ошибка при генерации: {e}")
+            return
+        # Сначала отправляем карточку публикации
+        await update.message.reply_text(
+            f"📋 ДАННЫЕ ДЛЯ ПУБЛИКАЦИИ\n\n{result['seo']}"
+        )
+        # Затем HTML статьи частями (лимит Telegram — 4096 символов)
         article_text = result["article"]
-        if len(article_text) > 4000:
-            await update.message.reply_text(article_text[:4000])
-            await update.message.reply_text(article_text[4000:8000])
-        else:
-            await update.message.reply_text(article_text)
-        await update.message.reply_text(f"📊 SEO:\n\n{result['seo']}")
-        await update.message.reply_text(f"✅ Сохранено в файл:\n{result['file']}")
+        for i in range(0, len(article_text), 4000):
+            await update.message.reply_text(article_text[i:i + 4000])
+        await update.message.reply_text(f"✅ Файл сохранён:\n{result['file']}")
         return
 
     if text == "✍️ Написать статью":
