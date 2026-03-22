@@ -1,8 +1,13 @@
 import json
 import logging
+import os
 import requests
+from pathlib import Path
+from dotenv import load_dotenv
 from bot.utils.openrouter import call_agent
 from bot.utils.wp_media import upload_image_from_url
+
+load_dotenv(Path(__file__).parent.parent.parent / ".env")
 
 MODEL = "anthropic/claude-haiku-4-5"
 TEMPERATURE = 0.2
@@ -45,6 +50,31 @@ def search_nasa_image(query: str) -> dict | None:
         return None
 
 
+def search_unsplash_image(query: str) -> dict | None:
+    """Ищет изображение на Unsplash. Возвращает {url, title} или None."""
+    access_key = os.getenv("UNSPLASH_ACCESS_KEY", "")
+    if not access_key or access_key == "your_unsplash_access_key_here":
+        return None
+    try:
+        resp = requests.get(
+            "https://api.unsplash.com/search/photos",
+            params={"query": query, "per_page": 1, "orientation": "landscape"},
+            headers={"Authorization": f"Client-ID {access_key}"},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        results = resp.json().get("results", [])
+        if not results:
+            return None
+        photo = results[0]
+        url = photo["urls"]["regular"]
+        title = photo.get("alt_description") or photo.get("description") or query
+        return {"url": url, "title": title.capitalize()}
+    except Exception as e:
+        logging.warning(f"Unsplash API error for query '{query}': {e}")
+        return None
+
+
 def insert_image_after_heading(article: str, heading: str, url: str, title: str) -> str:
     """Вставляет изображение после H2-заголовка в тексте."""
     heading_md = f"## {heading}"
@@ -73,14 +103,19 @@ def run(article: str) -> str:
         heading = pos.get("after_heading", "").strip()
         if not query or not heading:
             continue
+        # Сначала ищем в NASA, если не нашли — в Unsplash
         image = search_nasa_image(query)
+        if not image:
+            logging.info(f"image_finder: NASA не нашёл '{query}', пробуем Unsplash...")
+            image = search_unsplash_image(query)
+
         if image:
             # Загружаем в медиатеку WordPress, получаем постоянный URL
             wp_url = upload_image_from_url(image["url"], image["title"])
             final_url = wp_url if wp_url else image["url"]
             result = insert_image_after_heading(result, heading, final_url, image["title"])
-            logging.info(f"image_finder: вставлено изображение '{image['title']}' после '{heading}' → {final_url}")
+            logging.info(f"image_finder: вставлено '{image['title']}' после '{heading}' → {final_url}")
         else:
-            logging.warning(f"image_finder: не найдено изображение для '{query}'")
+            logging.warning(f"image_finder: не найдено изображение для '{query}' ни в NASA, ни в Unsplash")
 
     return result

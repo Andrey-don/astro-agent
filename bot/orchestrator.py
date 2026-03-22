@@ -32,7 +32,9 @@ def generate_article(topic: str, article_type: str = "научпоп") -> dict:
 
     # Сохраняем .html файл (для вставки в WordPress → вкладка Код)
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
-    safe_topic = topic[:40].replace(" ", "-").replace("/", "-")
+    # Убираем эмодзи и спецсимволы, оставляем буквы (включая кириллицу), цифры, пробелы, дефисы
+    safe_topic = "".join(c for c in topic if c.isalnum() or c in " -_")
+    safe_topic = safe_topic.strip().replace(" ", "-")[:40] or "article"
     filename = f"{timestamp}_{safe_topic}.html"
 
     date_str = datetime.now().strftime("%d.%m.%Y")

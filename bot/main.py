@@ -20,6 +20,8 @@ MAIN_KEYBOARD = ReplyKeyboardMarkup(
     resize_keyboard=True,
 )
 
+BUTTON_TEXTS = {"✍️ Написать статью", "📋 План на неделю", "📰 Новостная", "🔭 Научпоп", "🌐 Смешанная"}
+
 user_state: dict = {}
 
 
@@ -35,8 +37,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     chat_id = update.message.chat_id
 
-    # Ожидание темы
-    if chat_id in user_state:
+    # Ожидание темы — но если пользователь нажал кнопку, сбрасываем и обрабатываем кнопку
+    if chat_id in user_state and text not in BUTTON_TEXTS:
         article_type = user_state.pop(chat_id)
         await update.message.reply_text(f"Пишу статью «{text}»... Подожди 1-2 минуты. ⏳")
         try:
@@ -57,6 +59,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(article_text[i:i + 4000])
         await update.message.reply_text(f"✅ Файл сохранён:\n{result['file']}")
         return
+
+    # Если была ожидающая тема, но пользователь нажал кнопку — сбрасываем состояние
+    if chat_id in user_state and text in BUTTON_TEXTS:
+        user_state.pop(chat_id)
 
     if text == "✍️ Написать статью":
         user_state[chat_id] = "научпоп"
