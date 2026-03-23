@@ -200,34 +200,54 @@ def _find_category_id(category_name: str) -> int | None:
 def get_schedule_topics(days: int = 7) -> list[dict]:
     """
     Возвращает список тем для публикации на ближайшие N дней.
-    Каждый элемент: {"topic": str, "article_type": str, "publish_date": str (ISO 8601)}
+    Темы берутся по одной из каждого раздела контент-плана по очереди (ротация рубрик).
     Расписание: пн-пт в 10:00, сб в 12:00, вс — пропуск.
-    Типы чередуются: новостная, научпоп, смешанная.
     """
     from datetime import datetime, timedelta
 
-    # Банк тем из content-plan.md (берём первые подходящие строки вида "N. Тема")
     plan_text = read_project_file("content-plan.md")
-    topics_raw = re.findall(r"^\d+\.\s+(.+)$", plan_text, re.MULTILINE)
+
+    # Парсим темы по разделам: ### Раздел → [тема1, тема2, ...]
+    sections = {}
+    current_section = None
+    for line in plan_text.splitlines():
+        if line.startswith("### "):
+            current_section = line[4:].strip()
+            sections[current_section] = []
+        elif current_section and re.match(r"^\d+\.\s+", line):
+            topic = re.sub(r"^\d+\.\s+", "", line).strip()
+            sections[current_section].append(topic)
+
+    # Убираем пустые разделы и строим ротацию
+    section_names = [s for s, topics in sections.items() if topics]
+    section_pointers = {s: 0 for s in section_names}
 
     type_cycle = ["новостная", "научпоп", "смешанная", "научпоп", "новостная", "научпоп"]
     schedule = []
-    topic_index = 0
     day = datetime.now().replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=1)
+    sec_idx = 0
     type_idx = 0
 
-    while len(schedule) < days and topic_index < len(topics_raw):
+    while len(schedule) < days:
         if day.weekday() == 6:  # воскресенье — пропуск
             day += timedelta(days=1)
             continue
-        pub_hour = 12 if day.weekday() == 5 else 10  # сб в 12:00
+
+        # Берём тему из следующего раздела по кругу
+        section = section_names[sec_idx % len(section_names)]
+        ptr = section_pointers[section]
+        topics_in_section = sections[section]
+        topic = topics_in_section[ptr % len(topics_in_section)]
+        section_pointers[section] = ptr + 1
+
+        pub_hour = 12 if day.weekday() == 5 else 10
         pub_date = day.replace(hour=pub_hour).strftime("%Y-%m-%dT%H:%M:%S")
         schedule.append({
-            "topic": topics_raw[topic_index].strip(),
+            "topic": topic,
             "article_type": type_cycle[type_idx % len(type_cycle)],
             "publish_date": pub_date,
         })
-        topic_index += 1
+        sec_idx += 1
         type_idx += 1
         day += timedelta(days=1)
 
