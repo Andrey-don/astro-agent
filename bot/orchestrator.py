@@ -31,6 +31,18 @@ def generate_article(topic: str, article_type: str = "научпоп") -> dict:
     # Конвертируем Markdown → HTML для вставки в WordPress
     html_article = md_converter.markdown(final, extensions=["extra"])
 
+    # Убираем featured image из тела статьи — оно уже будет как изображение записи
+    featured_image_url = _parse_featured_image(seo_data)
+    if featured_image_url:
+        # Удаляем <img> с этим src (с любыми атрибутами вокруг)
+        html_article = re.sub(
+            r'<img[^>]*src=["\']' + re.escape(featured_image_url) + r'["\'][^>]*/?>',
+            "",
+            html_article,
+        )
+        # Убираем пустой <p></p> если он остался после удаления картинки
+        html_article = re.sub(r"<p>\s*</p>", "", html_article)
+
     # Сохраняем .html файл (для вставки в WordPress → вкладка Код)
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
     # Убираем эмодзи и спецсимволы, оставляем буквы (включая кириллицу), цифры, пробелы, дефисы
@@ -62,14 +74,45 @@ def generate_article(topic: str, article_type: str = "научпоп") -> dict:
         "type": article_type,
         "article": html_article,
         "seo": seo_data,
-        "title": _parse_title(seo_data) or topic,
+        "title": (_parse_title(seo_data) or topic).capitalize(),
+        "tags": _parse_tags(seo_data),
+        "featured_image": _parse_featured_image(seo_data),
         "file": filepath,
     }
 
 
 def _parse_title(seo_data: str) -> str:
-    """Извлекает заголовок из SEO-данных агента."""
-    match = re.search(r"\*{0,2}Заголовок\*{0,2}[^\n:]*[:—]\s*(.+)", seo_data)
+    """Извлекает SEO-заголовок из данных агента.
+    Поддерживает формат '**Заголовок** — Текст' и '**Заголовок (H1)**\nТекст'.
+    """
+    match = re.search(r"\*{0,2}Заголовок[^\n*]*\*{0,2}[^\n]*\n?\s*([^\n#*]{10,})", seo_data)
+    if not match:
+        return ""
+    title = match.group(1).strip()
+    # Убираем возможный префикс "— " или "- "
+    title = re.sub(r"^[—\-]\s*", "", title)
+    return title
+
+
+def _parse_tags(seo_data: str) -> list[str]:
+    """Извлекает список меток из SEO-данных агента.
+    Поддерживает формат '**Метки** — тег1, тег2' и '**Метки**\nтег1, тег2'.
+    """
+    # Ищем строку с "Метки" и берём всё после неё (на той же или следующей строке)
+    match = re.search(r"\*{0,2}Метки\*{0,2}[^\n]*\n?\s*([^\n#*]+)", seo_data)
+    if not match:
+        return []
+    raw = match.group(1).strip()
+    # Убираем возможные маркеры "— " в начале
+    raw = re.sub(r"^[—-]\s*", "", raw)
+    return [t.strip() for t in raw.split(",") if t.strip()]
+
+
+def _parse_featured_image(seo_data: str) -> str:
+    """Извлекает URL изображения записи из SEO-данных агента.
+    Поддерживает формат '**Изображение записи** — https://...' и многострочный.
+    """
+    match = re.search(r"\*{0,2}Изображение записи\*{0,2}[^\n]*\n?\s*(https?://\S+)", seo_data)
     return match.group(1).strip() if match else ""
 
 

@@ -93,9 +93,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def _save_draft(update: Update, result: dict):
-    """Сохраняет черновик в WordPress без категории."""
+    """Сохраняет черновик в WordPress с заголовком, метками и изображением."""
     draft = await asyncio.to_thread(
-        wp_posts.create_draft, result["title"], result["article"], None
+        wp_posts.create_draft,
+        result["title"],
+        result["article"],
+        None,
+        result.get("tags", []),
+        result.get("featured_image", ""),
     )
     if draft:
         wp_url = os.getenv("WP_URL", "").rstrip("/")
