@@ -119,6 +119,8 @@ async def _save_draft(update: Update, result: dict):
             f"🔗 {edit_link}",
             reply_markup=keyboard,
         )
+        # Восстанавливаем нижнюю клавиатуру
+        await update.message.reply_text("Готово. Выбери следующее действие:", reply_markup=MAIN_KEYBOARD)
     else:
         await update.message.reply_text("⚠️ Не удалось сохранить черновик в WordPress.")
 
