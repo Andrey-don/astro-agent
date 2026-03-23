@@ -173,6 +173,7 @@ def create_draft(
     meta_description: str = "",
     focus_keyword: str = "",
     slug: str = "",
+    publish_date: str = "",  # ISO 8601: "2026-03-25T10:00:00"
 ) -> dict | None:
     """
     Создаёт черновик записи в WordPress.
@@ -183,8 +184,10 @@ def create_draft(
     payload = {
         "title": title,
         "content": html_content,
-        "status": "draft",
+        "status": "future" if publish_date else "draft",
     }
+    if publish_date:
+        payload["date"] = publish_date
     if slug:
         payload["slug"] = slug
     if category_id:

@@ -141,12 +141,21 @@ def _parse_meta_description(seo_data: str) -> str:
 
 
 def _parse_focus_keyword(seo_data: str) -> str:
-    """Извлекает первое ключевое слово из SEO-данных агента."""
+    """Извлекает фокусное слово из SEO-данных агента (одно слово)."""
+    # Новый формат: отдельное поле "Фокусное слово"
+    match = re.search(r"\*{0,2}Фокусное слово\*{0,2}[^\n]*\n?\s*([^\n#*]{2,30})", seo_data)
+    if match:
+        kw = match.group(1).strip()
+        kw = re.sub(r"^[—\-]\s*", "", kw)
+        # Берём только первое слово если агент всё же написал фразу
+        return kw.split()[0] if kw else ""
+    # Фолбэк: первое слово из списка ключевых слов
     match = re.search(r"\*{0,2}Ключевые слова\*{0,2}[^\n]*\n\s*[-*]?\s*([^\n#*]{3,})", seo_data)
     if not match:
         return ""
     kw = match.group(1).strip()
-    return re.sub(r"^[—\-]\s*", "", kw)
+    kw = re.sub(r"^[—\-]\s*", "", kw)
+    return kw.split()[0] if kw else ""
 
 
 def _parse_slug(seo_data: str) -> str:
@@ -186,6 +195,43 @@ def _find_category_id(category_name: str) -> int | None:
         logging.info(f"orchestrator: рубрика '{category_name}' → fuzzy match (score={best_score:.2f})")
         return best_id
     return None
+
+
+def get_schedule_topics(days: int = 7) -> list[dict]:
+    """
+    Возвращает список тем для публикации на ближайшие N дней.
+    Каждый элемент: {"topic": str, "article_type": str, "publish_date": str (ISO 8601)}
+    Расписание: пн-пт в 10:00, сб в 12:00, вс — пропуск.
+    Типы чередуются: новостная, научпоп, смешанная.
+    """
+    from datetime import datetime, timedelta
+
+    # Банк тем из content-plan.md (берём первые подходящие строки вида "N. Тема")
+    plan_text = read_project_file("content-plan.md")
+    topics_raw = re.findall(r"^\d+\.\s+(.+)$", plan_text, re.MULTILINE)
+
+    type_cycle = ["новостная", "научпоп", "смешанная", "научпоп", "новостная", "научпоп"]
+    schedule = []
+    topic_index = 0
+    day = datetime.now().replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=1)
+    type_idx = 0
+
+    while len(schedule) < days and topic_index < len(topics_raw):
+        if day.weekday() == 6:  # воскресенье — пропуск
+            day += timedelta(days=1)
+            continue
+        pub_hour = 12 if day.weekday() == 5 else 10  # сб в 12:00
+        pub_date = day.replace(hour=pub_hour).strftime("%Y-%m-%dT%H:%M:%S")
+        schedule.append({
+            "topic": topics_raw[topic_index].strip(),
+            "article_type": type_cycle[type_idx % len(type_cycle)],
+            "publish_date": pub_date,
+        })
+        topic_index += 1
+        type_idx += 1
+        day += timedelta(days=1)
+
+    return schedule
 
 
 def get_plan() -> str:
