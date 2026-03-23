@@ -56,15 +56,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"❌ Ошибка при генерации: {e}")
             return
 
-        # Отправляем карточку публикации
-        await update.message.reply_text(f"📋 ДАННЫЕ ДЛЯ ПУБЛИКАЦИИ\n\n{result['seo']}")
-        # Затем HTML статьи частями (лимит Telegram — 4096 символов)
-        article_text = result["article"]
-        for i in range(0, len(article_text), 4000):
-            await update.message.reply_text(article_text[i:i + 4000])
-        await update.message.reply_text(f"✅ Файл сохранён:\n{result['file']}")
-
-        # Сохраняем черновик в WordPress
+        # Сохраняем и публикуем в WordPress
         await _save_draft(update, result)
         return
 
