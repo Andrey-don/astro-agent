@@ -98,15 +98,21 @@ async def _save_draft(update: Update, result: dict):
         wp_posts.create_draft,
         result["title"],
         result["article"],
-        None,
+        result.get("category_id"),
         result.get("tags", []),
         result.get("featured_image", ""),
+        result.get("meta_description", ""),
+        result.get("focus_keyword", ""),
+        result.get("slug", ""),
     )
     if draft:
         wp_url = os.getenv("WP_URL", "").rstrip("/")
         edit_link = f"{wp_url}/wp-admin/post.php?post={draft['id']}&action=edit"
+        category_name = result.get("category_name", "")
+        cat_line = f"📁 Рубрика: {category_name}\n" if category_name else ""
         await update.message.reply_text(
             f"📝 Черновик сохранён в WordPress!\n"
+            f"{cat_line}"
             f"🔗 {edit_link}"
         )
     else:

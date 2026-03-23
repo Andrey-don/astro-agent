@@ -19,14 +19,18 @@ SYSTEM_PROMPT = """Ты — SEO-специалист для контентног
 9. **Замечания** — что исправить для лучшего SEO"""
 
 
-def run(article: str) -> str:
+def run(article: str, categories: list[str] | None = None) -> str:
     brief = read_project_file("brief.md")
+    if categories:
+        cat_list = "\n".join(f"- {c}" for c in categories)
+        categories_block = f"РУБРИКИ В WORDPRESS (выбери строго одну из этого списка):\n{cat_list}"
+    else:
+        categories_block = f"РУБРИКИ САЙТА (из brief):\n{brief}"
     context = f"""
 СТАТЬЯ:
 {article}
 
-РУБРИКИ САЙТА (выбери одну или предложи новую):
-{brief}
+{categories_block}
 
 Выдай SEO-данные и выбери рубрику для публикации в WordPress.
 """

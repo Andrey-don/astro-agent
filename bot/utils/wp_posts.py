@@ -106,6 +106,9 @@ def create_draft(
     category_id: int | None = None,
     tag_names: list[str] | None = None,
     featured_image_url: str = "",
+    meta_description: str = "",
+    focus_keyword: str = "",
+    slug: str = "",
 ) -> dict | None:
     """
     Создаёт черновик записи в WordPress.
@@ -118,8 +121,21 @@ def create_draft(
         "content": html_content,
         "status": "draft",
     }
+    if slug:
+        payload["slug"] = slug
     if category_id:
         payload["categories"] = [category_id]
+
+    # Yoast SEO поля
+    yoast_meta = {}
+    if meta_description:
+        yoast_meta["_yoast_wpseo_metadesc"] = meta_description
+    if focus_keyword:
+        yoast_meta["_yoast_wpseo_focuskw"] = focus_keyword
+    if title:
+        yoast_meta["_yoast_wpseo_title"] = title
+    if yoast_meta:
+        payload["meta"] = yoast_meta
 
     # Создаём/находим теги и добавляем их ID
     if tag_names:

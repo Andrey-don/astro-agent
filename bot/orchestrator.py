@@ -4,6 +4,7 @@ import markdown as md_converter
 from datetime import datetime
 from bot.agents import researcher, writer, editor, seo, image_finder
 from bot.utils.file_loader import read_project_file, save_article
+from bot.utils import wp_posts
 
 
 def generate_article(topic: str, article_type: str = "научпоп") -> dict:
@@ -18,18 +19,25 @@ def generate_article(topic: str, article_type: str = "научпоп") -> dict:
     print(f"[3/6] Редактор правит...")
     edited = editor.run(draft)
 
+    # Получаем список рубрик из WordPress один раз
+    wp_categories = [c["name"] for c in wp_posts.get_categories() if c["name"] != "Без рубрики"]
+
     print(f"[4/6] Редактор применяет SEO-замечания...")
-    seo_draft = seo.run(edited)
+    seo_draft = seo.run(edited, wp_categories or None)
     final = editor.run_seo_revision(edited, seo_draft)
 
     print(f"[5/6] Подбираем изображения из NASA...")
     final = image_finder.run(final)
 
     print(f"[6/6] SEO-анализ финальной статьи...")
-    seo_data = seo.run(final)
+    seo_data = seo.run(final, wp_categories or None)
 
     # Конвертируем Markdown → HTML для вставки в WordPress
     html_article = md_converter.markdown(final, extensions=["extra"])
+
+    # Убираем H1 из тела статьи — он уже передаётся как поле Title записи
+    html_article = re.sub(r"<h1[^>]*>.*?</h1>", "", html_article, count=1, flags=re.IGNORECASE | re.DOTALL)
+    html_article = re.sub(r"<p>\s*</p>", "", html_article)
 
     # Убираем featured image из тела статьи — оно уже будет как изображение записи
     featured_image_url = _parse_featured_image(seo_data)
@@ -69,6 +77,10 @@ def generate_article(topic: str, article_type: str = "научпоп") -> dict:
     filepath = save_article(filename, full_content)
     print(f"Статья сохранена: {filepath}")
 
+    # Определяем рубрику: парсим название из SEO, ищем в WordPress
+    category_name = _parse_category(seo_data)
+    category_id = _find_category_id(category_name) if category_name else None
+
     return {
         "topic": topic,
         "type": article_type,
@@ -76,7 +88,12 @@ def generate_article(topic: str, article_type: str = "научпоп") -> dict:
         "seo": seo_data,
         "title": (_parse_title(seo_data) or topic).capitalize(),
         "tags": _parse_tags(seo_data),
-        "featured_image": _parse_featured_image(seo_data),
+        "featured_image": featured_image_url,
+        "meta_description": _parse_meta_description(seo_data),
+        "focus_keyword": _parse_focus_keyword(seo_data),
+        "slug": _parse_slug(seo_data),
+        "category_id": category_id,
+        "category_name": category_name,
         "file": filepath,
     }
 
@@ -109,11 +126,60 @@ def _parse_tags(seo_data: str) -> list[str]:
 
 
 def _parse_featured_image(seo_data: str) -> str:
-    """Извлекает URL изображения записи из SEO-данных агента.
-    Поддерживает формат '**Изображение записи** — https://...' и многострочный.
-    """
+    """Извлекает URL изображения записи из SEO-данных агента."""
     match = re.search(r"\*{0,2}Изображение записи\*{0,2}[^\n]*\n?\s*(https?://\S+)", seo_data)
     return match.group(1).strip() if match else ""
+
+
+def _parse_meta_description(seo_data: str) -> str:
+    """Извлекает meta description из SEO-данных агента."""
+    match = re.search(r"\*{0,2}Meta Description\*{0,2}[^\n]*\n?\s*([^\n#*]{20,})", seo_data)
+    if not match:
+        return ""
+    desc = match.group(1).strip()
+    return re.sub(r"^[—\-]\s*", "", desc)
+
+
+def _parse_focus_keyword(seo_data: str) -> str:
+    """Извлекает первое ключевое слово из SEO-данных агента."""
+    match = re.search(r"\*{0,2}Ключевые слова\*{0,2}[^\n]*\n\s*[-*]?\s*([^\n#*]{3,})", seo_data)
+    if not match:
+        return ""
+    kw = match.group(1).strip()
+    return re.sub(r"^[—\-]\s*", "", kw)
+
+
+def _parse_slug(seo_data: str) -> str:
+    """Извлекает slug из SEO-данных агента."""
+    match = re.search(r"\*{0,2}Slug[^\n*]*\*{0,2}[^\n]*\n?\s*[`\"]?([a-z0-9][a-z0-9\-]{3,})[`\"]?", seo_data)
+    return match.group(1).strip() if match else ""
+
+
+def _parse_category(seo_data: str) -> str:
+    """Извлекает рубрику из SEO-данных агента."""
+    match = re.search(r"\*{0,2}Рубрика\*{0,2}[^\n]*\n?\s*\*{0,2}([^\n#*\(]{3,})\*{0,2}", seo_data)
+    if not match:
+        return ""
+    cat = match.group(1).strip()
+    return re.sub(r"^[—\-]\s*", "", cat)
+
+
+def _find_category_id(category_name: str) -> int | None:
+    """Ищет ID рубрики по названию (нечёткое совпадение)."""
+    categories = wp_posts.get_categories()
+    if not categories:
+        return None
+    name_lower = category_name.lower().strip()
+    # Точное совпадение
+    for cat in categories:
+        if cat["name"].lower().strip() == name_lower:
+            return cat["id"]
+    # Частичное совпадение — ищем рубрику, которая содержится в названии или наоборот
+    for cat in categories:
+        cat_lower = cat["name"].lower().strip()
+        if cat_lower in name_lower or name_lower in cat_lower:
+            return cat["id"]
+    return None
 
 
 def get_plan() -> str:
