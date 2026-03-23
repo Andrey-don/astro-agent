@@ -197,17 +197,29 @@ def _find_category_id(category_name: str) -> int | None:
     return None
 
 
-def get_schedule_topics(days: int = 7) -> list[dict]:
+def get_schedule_topics(start_date: str, days: int = 7) -> list[dict]:
     """
-    Возвращает список тем для публикации на ближайшие N дней.
-    Темы берутся по одной из каждого раздела контент-плана по очереди (ротация рубрик).
-    Расписание: пн-пт в 10:00, сб в 12:00, вс — пропуск.
+    Возвращает список тем начиная с start_date (формат "DD.MM" или "DD.MM.YYYY").
+    Публикация каждый день в 10:00, без пропусков.
+    Темы чередуются по разделам контент-плана.
     """
     from datetime import datetime, timedelta
 
+    # Парсим дату старта
+    for fmt in ("%d.%m.%Y", "%d.%m"):
+        try:
+            start = datetime.strptime(start_date.strip(), fmt)
+            if fmt == "%d.%m":
+                start = start.replace(year=datetime.now().year)
+            break
+        except ValueError:
+            continue
+    else:
+        raise ValueError(f"Не могу распознать дату: {start_date}. Напиши в формате ДД.ММ или ДД.ММ.ГГГГ")
+
     plan_text = read_project_file("content-plan.md")
 
-    # Парсим темы по разделам: ### Раздел → [тема1, тема2, ...]
+    # Парсим темы по разделам
     sections = {}
     current_section = None
     for line in plan_text.splitlines():
@@ -218,38 +230,22 @@ def get_schedule_topics(days: int = 7) -> list[dict]:
             topic = re.sub(r"^\d+\.\s+", "", line).strip()
             sections[current_section].append(topic)
 
-    # Убираем пустые разделы и строим ротацию
     section_names = [s for s, topics in sections.items() if topics]
     section_pointers = {s: 0 for s in section_names}
-
     type_cycle = ["новостная", "научпоп", "смешанная", "научпоп", "новостная", "научпоп"]
+
     schedule = []
-    day = datetime.now().replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=1)
-    sec_idx = 0
-    type_idx = 0
-
-    while len(schedule) < days:
-        if day.weekday() == 6:  # воскресенье — пропуск
-            day += timedelta(days=1)
-            continue
-
-        # Берём тему из следующего раздела по кругу
-        section = section_names[sec_idx % len(section_names)]
+    for i in range(days):
+        day = start.replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=i)
+        section = section_names[i % len(section_names)]
         ptr = section_pointers[section]
-        topics_in_section = sections[section]
-        topic = topics_in_section[ptr % len(topics_in_section)]
+        topic = sections[section][ptr % len(sections[section])]
         section_pointers[section] = ptr + 1
-
-        pub_hour = 12 if day.weekday() == 5 else 10
-        pub_date = day.replace(hour=pub_hour).strftime("%Y-%m-%dT%H:%M:%S")
         schedule.append({
             "topic": topic,
-            "article_type": type_cycle[type_idx % len(type_cycle)],
-            "publish_date": pub_date,
+            "article_type": type_cycle[i % len(type_cycle)],
+            "publish_date": day.strftime("%Y-%m-%dT%H:%M:%S"),
         })
-        sec_idx += 1
-        type_idx += 1
-        day += timedelta(days=1)
 
     return schedule
 

@@ -24,6 +24,7 @@ MAIN_KEYBOARD = ReplyKeyboardMarkup(
 )
 
 BUTTON_TEXTS = {"✍️ Написать статью", "📋 План на неделю", "📰 Новостная", "🔭 Научпоп", "🌐 Смешанная", "📅 Запланировать неделю"}
+WEEK_STATES = {"waiting_week_date"}
 
 # user_state[chat_id] = {"state": "waiting_topic", "article_type": "..."}
 user_state: dict = {}
@@ -41,6 +42,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     chat_id = update.message.chat_id
     state_data = user_state.get(chat_id, {})
+
+    # Ожидание даты для планировщика недели
+    if state_data.get("state") == "waiting_week_date" and text not in BUTTON_TEXTS:
+        user_state.pop(chat_id)
+        await update.message.reply_text(f"Генерирую 7 статей с {text}... ⏳ (~20 мин)")
+        await _generate_week(update, start_date=text)
+        return
 
     # Ожидание темы — но если пользователь нажал кнопку, сбрасываем и обрабатываем кнопку
     if state_data.get("state") == "waiting_topic" and text not in BUTTON_TEXTS:
@@ -85,8 +93,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"📋 Контент-план:\n\n{plan[:4000]}")
 
     elif text == "📅 Запланировать неделю":
-        await update.message.reply_text("Генерирую 6 статей на неделю вперёд... Это займёт 10-15 минут. ⏳")
-        await _generate_week(update)
+        user_state[chat_id] = {"state": "waiting_week_date"}
+        await update.message.reply_text("С какой даты? (например: 25.03)")
 
 
 async def _save_draft(update: Update, result: dict):
@@ -121,9 +129,9 @@ async def _save_draft(update: Update, result: dict):
 
 
 
-async def _generate_week(update):
-    """Генерирует 6 статей на неделю вперёд с отложенной публикацией."""
-    schedule = orchestrator.get_schedule_topics(days=6)
+async def _generate_week(update, start_date: str = ""):
+    """Генерирует 7 статей с указанной даты с отложенной публикацией."""
+    schedule = orchestrator.get_schedule_topics(start_date=start_date, days=7)
 
     for i, item in enumerate(schedule, 1):
         topic = item["topic"]
