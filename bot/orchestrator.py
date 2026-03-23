@@ -235,8 +235,34 @@ def get_schedule_topics(start_date: str, days: int = 7) -> list[dict]:
     used = get_used_topics()
     type_cycle = ["новостная", "научпоп", "смешанная", "научпоп", "новостная", "научпоп"]
 
-    # Фильтруем использованные темы из каждого раздела
-    available = {s: [t for t in topics if t.lower() not in used]
+    # Получаем заголовки уже существующих постов в WordPress
+    from difflib import SequenceMatcher
+    wp_titles = wp_posts.get_post_titles()
+
+    _STOP_WORDS = {"и", "в", "на", "что", "как", "это", "она", "он", "а", "но", "то",
+                   "из", "по", "за", "или", "же", "ни", "не", "от", "до", "при", "со",
+                   "об", "для", "так", "уже", "ли", "бы", "со", "об", "его", "её", "их"}
+
+    def _key_words(text: str) -> set:
+        """Возвращает набор корней значимых слов (первые 5 символов, длина ≥ 4)."""
+        words = re.sub(r"[^\w\s]", " ", text.lower()).split()
+        return {w[:5] for w in words if len(w) >= 4 and w not in _STOP_WORDS}
+
+    def _is_wp_duplicate(topic: str) -> bool:
+        """Проверяет дубликат: по ключевым словам (2+ совпадений) ИЛИ по строке (≥0.55)."""
+        t_lower = topic.lower()
+        t_words = _key_words(topic)
+        for title in wp_titles:
+            # Проверка по ключевым словам
+            if t_words and len(t_words & _key_words(title)) >= 2:
+                return True
+            # Проверка по строковому сходству
+            if SequenceMatcher(None, t_lower, title).ratio() >= 0.55:
+                return True
+        return False
+
+    # Фильтруем использованные темы и дубликаты из WordPress
+    available = {s: [t for t in topics if t.lower() not in used and not _is_wp_duplicate(t)]
                  for s, topics in sections.items() if topics}
 
     schedule = []

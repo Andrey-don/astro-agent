@@ -10,6 +10,7 @@ from telegram.ext import (
 from telegram.request import HTTPXRequest
 from bot import orchestrator
 from bot.utils import wp_posts
+from bot.utils.file_loader import mark_topic_used
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -18,16 +19,18 @@ MAIN_KEYBOARD = ReplyKeyboardMarkup(
     [
         ["✍️ Написать статью", "📋 План на неделю"],
         ["📰 Новостная", "🔭 Научпоп", "🌐 Смешанная"],
-        ["📅 Запланировать неделю"],
+        ["📅 Запланировать неделю", "⏹ Стоп"],
     ],
     resize_keyboard=True,
 )
 
-BUTTON_TEXTS = {"✍️ Написать статью", "📋 План на неделю", "📰 Новостная", "🔭 Научпоп", "🌐 Смешанная", "📅 Запланировать неделю"}
+BUTTON_TEXTS = {"✍️ Написать статью", "📋 План на неделю", "📰 Новостная", "🔭 Научпоп", "🌐 Смешанная", "📅 Запланировать неделю", "⏹ Стоп"}
 WEEK_STATES = {"waiting_week_date"}
 
 # user_state[chat_id] = {"state": "waiting_topic", "article_type": "..."}
 user_state: dict = {}
+# cancel_flags[chat_id] = True означает что надо остановить генерацию
+cancel_flags: dict = {}
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -96,6 +99,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_state[chat_id] = {"state": "waiting_week_date"}
         await update.message.reply_text("С какой даты? (например: 25.03)")
 
+    elif text == "⏹ Стоп":
+        cancel_flags[chat_id] = True
+        await update.message.reply_text("⏹ Останавливаю после текущей статьи...", reply_markup=MAIN_KEYBOARD)
+
 
 async def _save_draft(update: Update, result: dict):
     """Сохраняет черновик в WordPress с заголовком, метками и изображением."""
@@ -131,15 +138,22 @@ async def _save_draft(update: Update, result: dict):
 
 async def _generate_week(update, start_date: str = ""):
     """Генерирует 7 статей с указанной даты с отложенной публикацией."""
+    chat_id = update.message.chat_id
+    cancel_flags[chat_id] = False
     schedule = orchestrator.get_schedule_topics(start_date=start_date, days=7)
 
     for i, item in enumerate(schedule, 1):
+        if cancel_flags.get(chat_id):
+            await update.message.reply_text("⏹ Генерация остановлена.", reply_markup=MAIN_KEYBOARD)
+            return
         topic = item["topic"]
         article_type = item["article_type"]
         pub_date = item["publish_date"]
         pub_day = pub_date[:10]
 
         await update.message.reply_text(f"[{i}/{len(schedule)}] Пишу: «{topic}» ({pub_day})...")
+        # Помечаем тему как использованную ДО генерации — чтобы не повторялась при перезапуске
+        await asyncio.to_thread(mark_topic_used, topic)
         try:
             result = await asyncio.to_thread(
                 orchestrator.generate_article, topic=topic, article_type=article_type

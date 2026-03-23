@@ -15,6 +15,37 @@ def _auth():
     return (WP_USERNAME, WP_APP_PASSWORD)
 
 
+def get_post_titles() -> list[str]:
+    """Возвращает заголовки всех постов WordPress (опубликованные + запланированные + черновики)."""
+    if not WP_URL:
+        return []
+    titles = []
+    page = 1
+    while True:
+        try:
+            resp = requests.get(
+                f"{WP_URL}/wp-json/wp/v2/posts",
+                params={"per_page": 100, "page": page, "status": "publish,future,draft", "_fields": "title"},
+                auth=_auth(),
+                timeout=15,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            if not data:
+                break
+            for post in data:
+                title = post.get("title", {}).get("rendered", "")
+                if title:
+                    titles.append(title.lower())
+            if len(data) < 100:
+                break
+            page += 1
+        except Exception as e:
+            logging.warning(f"wp_posts: не удалось получить посты: {e}")
+            break
+    return titles
+
+
 def get_categories() -> list[dict]:
     """Возвращает список категорий WordPress: [{id, name}, ...]"""
     if not WP_URL:
