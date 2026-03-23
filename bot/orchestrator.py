@@ -1,4 +1,5 @@
 import os
+import re
 import markdown as md_converter
 from datetime import datetime
 from bot.agents import researcher, writer, editor, seo, image_finder
@@ -61,8 +62,15 @@ def generate_article(topic: str, article_type: str = "научпоп") -> dict:
         "type": article_type,
         "article": html_article,
         "seo": seo_data,
+        "title": _parse_title(seo_data) or topic,
         "file": filepath,
     }
+
+
+def _parse_title(seo_data: str) -> str:
+    """Извлекает заголовок из SEO-данных агента."""
+    match = re.search(r"\*{0,2}Заголовок\*{0,2}[^\n:]*[:—]\s*(.+)", seo_data)
+    return match.group(1).strip() if match else ""
 
 
 def get_plan() -> str:

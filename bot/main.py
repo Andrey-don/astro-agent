@@ -7,7 +7,9 @@ from telegram.ext import (
     Application, CommandHandler, MessageHandler,
     ContextTypes, filters,
 )
+from telegram.request import HTTPXRequest
 from bot import orchestrator
+from bot.utils import wp_posts
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -22,6 +24,7 @@ MAIN_KEYBOARD = ReplyKeyboardMarkup(
 
 BUTTON_TEXTS = {"✍️ Написать статью", "📋 План на неделю", "📰 Новостная", "🔭 Научпоп", "🌐 Смешанная"}
 
+# user_state[chat_id] = {"state": "waiting_topic", "article_type": "..."}
 user_state: dict = {}
 
 
@@ -36,10 +39,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     chat_id = update.message.chat_id
+    state_data = user_state.get(chat_id, {})
 
     # Ожидание темы — но если пользователь нажал кнопку, сбрасываем и обрабатываем кнопку
-    if chat_id in user_state and text not in BUTTON_TEXTS:
-        article_type = user_state.pop(chat_id)
+    if state_data.get("state") == "waiting_topic" and text not in BUTTON_TEXTS:
+        article_type = state_data["article_type"]
+        user_state.pop(chat_id)
         await update.message.reply_text(f"Пишу статью «{text}»... Подожди 1-2 минуты. ⏳")
         try:
             result = await asyncio.to_thread(
@@ -49,35 +54,37 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logging.exception("Ошибка генерации статьи")
             await update.message.reply_text(f"❌ Ошибка при генерации: {e}")
             return
-        # Сначала отправляем карточку публикации
-        await update.message.reply_text(
-            f"📋 ДАННЫЕ ДЛЯ ПУБЛИКАЦИИ\n\n{result['seo']}"
-        )
+
+        # Отправляем карточку публикации
+        await update.message.reply_text(f"📋 ДАННЫЕ ДЛЯ ПУБЛИКАЦИИ\n\n{result['seo']}")
         # Затем HTML статьи частями (лимит Telegram — 4096 символов)
         article_text = result["article"]
         for i in range(0, len(article_text), 4000):
             await update.message.reply_text(article_text[i:i + 4000])
         await update.message.reply_text(f"✅ Файл сохранён:\n{result['file']}")
+
+        # Сохраняем черновик в WordPress без категории
+        await _save_draft(update, result)
         return
 
     # Если была ожидающая тема, но пользователь нажал кнопку — сбрасываем состояние
-    if chat_id in user_state and text in BUTTON_TEXTS:
+    if state_data and text in BUTTON_TEXTS:
         user_state.pop(chat_id)
 
     if text == "✍️ Написать статью":
-        user_state[chat_id] = "научпоп"
+        user_state[chat_id] = {"state": "waiting_topic", "article_type": "научпоп"}
         await update.message.reply_text("Напиши тему статьи:")
 
     elif text == "📰 Новостная":
-        user_state[chat_id] = "новостная"
+        user_state[chat_id] = {"state": "waiting_topic", "article_type": "новостная"}
         await update.message.reply_text("Напиши тему новостной статьи:")
 
     elif text == "🔭 Научпоп":
-        user_state[chat_id] = "научпоп"
+        user_state[chat_id] = {"state": "waiting_topic", "article_type": "научпоп"}
         await update.message.reply_text("Напиши тему для научпопа:")
 
     elif text == "🌐 Смешанная":
-        user_state[chat_id] = "смешанная"
+        user_state[chat_id] = {"state": "waiting_topic", "article_type": "смешанная"}
         await update.message.reply_text("Напиши тему:")
 
     elif text == "📋 План на неделю":
@@ -85,11 +92,34 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"📋 Контент-план:\n\n{plan[:4000]}")
 
 
+async def _save_draft(update: Update, result: dict):
+    """Сохраняет черновик в WordPress без категории."""
+    draft = await asyncio.to_thread(
+        wp_posts.create_draft, result["title"], result["article"], None
+    )
+    if draft:
+        wp_url = os.getenv("WP_URL", "").rstrip("/")
+        edit_link = f"{wp_url}/wp-admin/post.php?post={draft['id']}&action=edit"
+        await update.message.reply_text(
+            f"📝 Черновик сохранён в WordPress!\n"
+            f"🔗 {edit_link}"
+        )
+    else:
+        await update.message.reply_text("⚠️ Не удалось сохранить черновик в WordPress.")
+
+
 def main():
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not token:
         raise ValueError("TELEGRAM_BOT_TOKEN не задан в .env")
-    app = Application.builder().token(token).build()
+    request = HTTPXRequest(
+        connection_pool_size=8,
+        connect_timeout=60,
+        read_timeout=60,
+        write_timeout=60,
+        pool_timeout=30,
+    )
+    app = Application.builder().token(token).request(request).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     print("Астро-агент запущен.")
