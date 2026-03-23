@@ -3,7 +3,7 @@ import re
 import markdown as md_converter
 from datetime import datetime
 from bot.agents import researcher, writer, editor, seo, image_finder
-from bot.utils.file_loader import read_project_file, save_article
+from bot.utils.file_loader import read_project_file, save_article, get_used_topics, mark_topic_used
 from bot.utils import wp_posts
 
 
@@ -75,6 +75,7 @@ def generate_article(topic: str, article_type: str = "научпоп") -> dict:
 
 {html_article}"""
     filepath = save_article(filename, full_content)
+    mark_topic_used(topic)
     print(f"Статья сохранена: {filepath}")
 
     # Определяем рубрику: парсим название из SEO, ищем в WordPress
@@ -231,21 +232,32 @@ def get_schedule_topics(start_date: str, days: int = 7) -> list[dict]:
             sections[current_section].append(topic)
 
     section_names = [s for s, topics in sections.items() if topics]
-    section_pointers = {s: 0 for s in section_names}
+    used = get_used_topics()
     type_cycle = ["новостная", "научпоп", "смешанная", "научпоп", "новостная", "научпоп"]
 
+    # Фильтруем использованные темы из каждого раздела
+    available = {s: [t for t in topics if t.lower() not in used]
+                 for s, topics in sections.items() if topics}
+
     schedule = []
-    for i in range(days):
-        day = start.replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=i)
-        section = section_names[i % len(section_names)]
-        ptr = section_pointers[section]
-        topic = sections[section][ptr % len(sections[section])]
-        section_pointers[section] = ptr + 1
-        schedule.append({
-            "topic": topic,
-            "article_type": type_cycle[i % len(type_cycle)],
-            "publish_date": day.strftime("%Y-%m-%dT%H:%M:%S"),
-        })
+    sec_idx = 0
+    day_offset = 0
+    while len(schedule) < days:
+        section = section_names[sec_idx % len(section_names)]
+        topics_left = available.get(section, [])
+        if topics_left:
+            topic = topics_left.pop(0)
+            day = start.replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=day_offset)
+            schedule.append({
+                "topic": topic,
+                "article_type": type_cycle[day_offset % len(type_cycle)],
+                "publish_date": day.strftime("%Y-%m-%dT%H:%M:%S"),
+            })
+            day_offset += 1
+        sec_idx += 1
+        # Защита от бесконечного цикла если темы закончились
+        if sec_idx > len(section_names) * 100:
+            break
 
     return schedule
 
