@@ -100,6 +100,25 @@ def get_media_id_by_url(image_url: str) -> int | None:
     return None
 
 
+def publish_post(post_id: int) -> bool:
+    """Публикует черновик WordPress (draft → publish)."""
+    if not WP_URL:
+        return False
+    try:
+        resp = requests.post(
+            f"{WP_URL}/wp-json/wp/v2/posts/{post_id}",
+            auth=_auth(),
+            json={"status": "publish"},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        logging.info(f"wp_posts: пост {post_id} опубликован")
+        return True
+    except Exception as e:
+        logging.warning(f"wp_posts: не удалось опубликовать пост {post_id}: {e}")
+        return False
+
+
 def update_media_meta(media_id: int, alt_text: str = "", description: str = "") -> bool:
     """Обновляет alt text и описание медиафайла в WordPress."""
     if not WP_URL or not media_id:

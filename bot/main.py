@@ -2,9 +2,9 @@ import os
 import asyncio
 import logging
 from dotenv import load_dotenv
-from telegram import Update, ReplyKeyboardMarkup
+from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import (
-    Application, CommandHandler, MessageHandler,
+    Application, CommandHandler, MessageHandler, CallbackQueryHandler,
     ContextTypes, filters,
 )
 from telegram.request import HTTPXRequest
@@ -63,7 +63,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(article_text[i:i + 4000])
         await update.message.reply_text(f"✅ Файл сохранён:\n{result['file']}")
 
-        # Сохраняем черновик в WordPress без категории
+        # Сохраняем черновик в WordPress
         await _save_draft(update, result)
         return
 
@@ -110,13 +110,33 @@ async def _save_draft(update: Update, result: dict):
         edit_link = f"{wp_url}/wp-admin/post.php?post={draft['id']}&action=edit"
         category_name = result.get("category_name", "")
         cat_line = f"📁 Рубрика: {category_name}\n" if category_name else ""
+        keyboard = InlineKeyboardMarkup([[
+            InlineKeyboardButton("🚀 Опубликовать", callback_data=f"publish_{draft['id']}"),
+        ]])
         await update.message.reply_text(
             f"📝 Черновик сохранён в WordPress!\n"
             f"{cat_line}"
-            f"🔗 {edit_link}"
+            f"🔗 {edit_link}",
+            reply_markup=keyboard,
         )
     else:
         await update.message.reply_text("⚠️ Не удалось сохранить черновик в WordPress.")
+
+
+async def handle_publish(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Публикует черновик по нажатию inline-кнопки."""
+    query = update.callback_query
+    await query.answer()
+    post_id = int(query.data.split("_")[1])
+    success = await asyncio.to_thread(wp_posts.publish_post, post_id)
+    if success:
+        wp_url = os.getenv("WP_URL", "").rstrip("/")
+        post_url = f"{wp_url}/?p={post_id}"
+        await query.edit_message_text(
+            query.message.text + f"\n\n✅ Опубликовано!\n🌐 {post_url}"
+        )
+    else:
+        await query.answer("❌ Не удалось опубликовать", show_alert=True)
 
 
 def main():
@@ -132,6 +152,7 @@ def main():
     )
     app = Application.builder().token(token).request(request).build()
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(handle_publish, pattern=r"^publish_\d+$"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     print("Астро-агент запущен.")
     app.run_polling()
