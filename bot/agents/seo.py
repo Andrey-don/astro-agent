@@ -23,7 +23,7 @@ def run(article: str, categories: list[str] | None = None) -> str:
     brief = read_project_file("brief.md")
     if categories:
         cat_list = "\n".join(f"- {c}" for c in categories)
-        categories_block = f"РУБРИКИ В WORDPRESS (выбери строго одну из этого списка):\n{cat_list}"
+        categories_block = f"РУБРИКИ В WORDPRESS (выбери строго одну из этого списка, скопируй название ТОЧНО как написано):\n{cat_list}"
     else:
         categories_block = f"РУБРИКИ САЙТА (из brief):\n{brief}"
     context = f"""

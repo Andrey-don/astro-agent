@@ -100,6 +100,51 @@ def get_media_id_by_url(image_url: str) -> int | None:
     return None
 
 
+def update_media_meta(media_id: int, alt_text: str = "", description: str = "") -> bool:
+    """Обновляет alt text и описание медиафайла в WordPress."""
+    if not WP_URL or not media_id:
+        return False
+    payload = {}
+    if alt_text:
+        payload["alt_text"] = alt_text
+    if description:
+        payload["description"] = {"raw": description}
+    if not payload:
+        return False
+    try:
+        resp = requests.post(
+            f"{WP_URL}/wp-json/wp/v2/media/{media_id}",
+            auth=_auth(),
+            json=payload,
+            timeout=10,
+        )
+        resp.raise_for_status()
+        logging.info(f"wp_posts: обновлено мета медиафайла {media_id} (alt: {alt_text[:30]})")
+        return True
+    except Exception as e:
+        logging.warning(f"wp_posts: не удалось обновить мета медиафайла {media_id}: {e}")
+        return False
+
+
+def _update_body_images_alt(html: str, exclude_url: str = "") -> None:
+    """Обновляет alt text для изображений из тела статьи в медиатеке WordPress."""
+    if not WP_URL:
+        return
+    import re
+    for tag in re.findall(r"<img[^>]+>", html, re.IGNORECASE):
+        src_m = re.search(r'src=["\']([^"\']+)["\']', tag)
+        alt_m = re.search(r'alt=["\']([^"\']*)["\']', tag)
+        if not src_m:
+            continue
+        src = src_m.group(1)
+        alt = alt_m.group(1).strip() if alt_m else ""
+        if src == exclude_url or not alt or WP_URL not in src:
+            continue
+        media_id = get_media_id_by_url(src)
+        if media_id:
+            update_media_meta(media_id, alt_text=alt, description=alt)
+
+
 def create_draft(
     title: str,
     html_content: str,
@@ -143,12 +188,16 @@ def create_draft(
         if tag_ids:
             payload["tags"] = tag_ids
 
-    # Изображение записи — ищем ID по URL
+    # Изображение записи — ищем ID по URL и обновляем alt text
     if featured_image_url:
         media_id = get_media_id_by_url(featured_image_url)
         if media_id:
             payload["featured_media"] = media_id
+            update_media_meta(media_id, alt_text=title, description=meta_description)
             logging.info(f"wp_posts: изображение записи → ID {media_id}")
+
+    # Обновляем alt text для изображений в теле статьи
+    _update_body_images_alt(html_content, exclude_url=featured_image_url)
 
     try:
         resp = requests.post(

@@ -165,7 +165,8 @@ def _parse_category(seo_data: str) -> str:
 
 
 def _find_category_id(category_name: str) -> int | None:
-    """Ищет ID рубрики по названию (нечёткое совпадение)."""
+    """Ищет ID рубрики по названию (нечёткое совпадение через difflib)."""
+    from difflib import SequenceMatcher
     categories = wp_posts.get_categories()
     if not categories:
         return None
@@ -174,11 +175,16 @@ def _find_category_id(category_name: str) -> int | None:
     for cat in categories:
         if cat["name"].lower().strip() == name_lower:
             return cat["id"]
-    # Частичное совпадение — ищем рубрику, которая содержится в названии или наоборот
+    # Fuzzy matching — берём рубрику с наибольшим сходством
+    best_id, best_score = None, 0.0
     for cat in categories:
         cat_lower = cat["name"].lower().strip()
-        if cat_lower in name_lower or name_lower in cat_lower:
-            return cat["id"]
+        score = SequenceMatcher(None, name_lower, cat_lower).ratio()
+        if score > best_score:
+            best_score, best_id = score, cat["id"]
+    if best_score >= 0.6:
+        logging.info(f"orchestrator: рубрика '{category_name}' → fuzzy match (score={best_score:.2f})")
+        return best_id
     return None
 
 
