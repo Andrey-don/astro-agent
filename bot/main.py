@@ -94,7 +94,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif text == "📅 Запланировать неделю":
         await update.message.reply_text("Генерирую 6 статей на неделю вперёд... Это займёт 10-15 минут. ⏳")
-        await asyncio.to_thread(_generate_week, update)
+        await _generate_week(update)
 
 
 async def _save_draft(update: Update, result: dict):
@@ -129,12 +129,9 @@ async def _save_draft(update: Update, result: dict):
 
 
 
-def _generate_week(update):
-    """Синхронная функция генерации недели (запускается в потоке)."""
-    import asyncio as _asyncio
-
+async def _generate_week(update):
+    """Генерирует 6 статей на неделю вперёд с отложенной публикацией."""
     schedule = orchestrator.get_schedule_topics(days=6)
-    loop = _asyncio.new_event_loop()
 
     for i, item in enumerate(schedule, 1):
         topic = item["topic"]
@@ -142,17 +139,18 @@ def _generate_week(update):
         pub_date = item["publish_date"]
         pub_day = pub_date[:10]
 
-        loop.run_until_complete(
-            update.message.reply_text(f"[{i}/{len(schedule)}] Пишу: «{topic}» ({pub_day})...")
-        )
+        await update.message.reply_text(f"[{i}/{len(schedule)}] Пишу: «{topic}» ({pub_day})...")
         try:
-            result = orchestrator.generate_article(topic=topic, article_type=article_type)
+            result = await asyncio.to_thread(
+                orchestrator.generate_article, topic=topic, article_type=article_type
+            )
         except Exception as e:
             logging.exception(f"Ошибка генерации '{topic}'")
-            loop.run_until_complete(update.message.reply_text(f"❌ Ошибка: {topic}\n{e}"))
+            await update.message.reply_text(f"❌ Ошибка: {topic}\n{e}")
             continue
 
-        draft = wp_posts.create_draft(
+        draft = await asyncio.to_thread(
+            wp_posts.create_draft,
             result["title"], result["article"],
             result.get("category_id"),
             result.get("tags", []),
@@ -160,25 +158,24 @@ def _generate_week(update):
             result.get("meta_description", ""),
             result.get("focus_keyword", ""),
             result.get("slug", ""),
-            publish_date=pub_date,
+            pub_date,
         )
         if draft:
             wp_url = os.getenv("WP_URL", "").rstrip("/")
             edit_link = f"{wp_url}/wp-admin/post.php?post={draft['id']}&action=edit"
             cat = result.get("category_name", "")
-            loop.run_until_complete(update.message.reply_text(
+            await update.message.reply_text(
                 f"✅ {pub_day} — «{result['title']}»\n"
                 f"{'📁 ' + cat + chr(10) if cat else ''}"
                 f"🔗 {edit_link}"
-            ))
+            )
         else:
-            loop.run_until_complete(update.message.reply_text(f"⚠️ Не сохранилась: {topic}"))
+            await update.message.reply_text(f"⚠️ Не сохранилась: {topic}")
 
-    loop.run_until_complete(update.message.reply_text(
+    await update.message.reply_text(
         "🎉 Неделя готова! Все статьи запланированы в WordPress.",
         reply_markup=MAIN_KEYBOARD,
-    ))
-    loop.close()
+    )
 
 
 def main():
