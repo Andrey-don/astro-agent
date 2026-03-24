@@ -105,12 +105,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⏹ Останавливаю после текущей статьи...", reply_markup=MAIN_KEYBOARD)
 
     elif text == "🔄 Рестарт":
-        await update.message.reply_text("🔄 Перезапускаю бота...")
-        import subprocess, sys, os
+        await update.message.reply_text("🔄 Перезапускаю бота... (~5 сек)")
         # Сохраняем chat_id чтобы новый процесс отправил подтверждение
         with open(".restart_chat_id", "w") as f:
             f.write(str(chat_id))
-        subprocess.Popen([sys.executable, "-m", "bot.main"])
+        # Запускаем новый процесс с задержкой чтобы старый успел отключиться
+        import threading
+        threading.Thread(target=_delayed_restart, daemon=True).start()
+        await asyncio.sleep(1)
         os._exit(0)
 
 
@@ -212,6 +214,13 @@ async def on_startup(app):
             await app.bot.send_message(chat_id=int(chat_id), text="✅ Бот перезапущен успешно!", reply_markup=MAIN_KEYBOARD)
         except Exception:
             pass
+
+
+def _delayed_restart():
+    """Запускает новый процесс бота через 4 секунды — чтобы старый успел отключиться."""
+    import subprocess, sys, time
+    time.sleep(4)
+    subprocess.Popen([sys.executable, "-m", "bot.main"])
 
 
 def main():
