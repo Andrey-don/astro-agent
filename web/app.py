@@ -97,8 +97,8 @@ def generate_week():
 
     def run():
         try:
-            schedule = orchestrator.get_schedule_topics(start_date=start_date, days=7)
-            send_msg(session_id, f"📅 Генерирую 7 статей с {start_date}... (~20 мин)")
+            schedule = orchestrator.get_schedule_topics(start_date=start_date, days=10)
+            send_msg(session_id, f"📅 Генерирую 10 статей с {start_date}... (~30 мин)")
             for i, item in enumerate(schedule, 1):
                 if cancel_flags.get(session_id):
                     send_msg(session_id, "⏹ Генерация остановлена.")
@@ -138,7 +138,7 @@ def generate_week():
                 else:
                     send_msg(session_id, f"⚠️ Не сохранилась: {topic}")
             else:
-                send_msg(session_id, "🎉 Неделя готова! Все статьи запланированы в WordPress.")
+                send_msg(session_id, "🎉 10 дней готовы! Все статьи запланированы в WordPress.")
         except Exception as e:
             logging.exception("Ошибка планировщика")
             send_msg(session_id, f"❌ Критическая ошибка: {e}")

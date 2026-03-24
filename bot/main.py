@@ -17,15 +17,15 @@ logging.basicConfig(level=logging.INFO)
 
 MAIN_KEYBOARD = ReplyKeyboardMarkup(
     [
-        ["✍️ Написать статью", "📋 План на неделю"],
+        ["✍️ Написать статью", "📋 План на 10 дней"],
         ["📰 Новостная", "🔭 Научпоп", "🌐 Смешанная"],
-        ["📅 Запланировать неделю", "⏹ Стоп"],
+        ["📅 Запланировать на 10 дней", "⏹ Стоп"],
         ["🔄 Рестарт"],
     ],
     resize_keyboard=True,
 )
 
-BUTTON_TEXTS = {"✍️ Написать статью", "📋 План на неделю", "📰 Новостная", "🔭 Научпоп", "🌐 Смешанная", "📅 Запланировать неделю", "⏹ Стоп", "🔄 Рестарт"}
+BUTTON_TEXTS = {"✍️ Написать статью", "📋 План на 10 дней", "📰 Новостная", "🔭 Научпоп", "🌐 Смешанная", "📅 Запланировать на 10 дней", "⏹ Стоп", "🔄 Рестарт"}
 WEEK_STATES = {"waiting_week_date"}
 
 # user_state[chat_id] = {"state": "waiting_topic", "article_type": "..."}
@@ -50,7 +50,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Ожидание даты для планировщика недели
     if state_data.get("state") == "waiting_week_date" and text not in BUTTON_TEXTS:
         user_state.pop(chat_id)
-        await update.message.reply_text(f"Генерирую 7 статей с {text}... ⏳ (~20 мин)")
+        await update.message.reply_text(f"Генерирую 10 статей с {text}... ⏳ (~30 мин)")
         await _generate_week(update, start_date=text)
         return
 
@@ -92,7 +92,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_state[chat_id] = {"state": "waiting_topic", "article_type": "смешанная"}
         await update.message.reply_text("Напиши тему:")
 
-    elif text == "📋 План на неделю":
+    elif text == "📋 План на 10 дней":
         plan = orchestrator.get_plan()
         # Разбиваем на части по 4000 символов если план длинный
         chunks = [plan[i:i+4000] for i in range(0, len(plan), 4000)]
@@ -100,7 +100,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             prefix = "📋 Контент-план:\n\n" if idx == 0 else ""
             await update.message.reply_text(f"{prefix}{chunk}")
 
-    elif text == "📅 Запланировать неделю":
+    elif text == "📅 Запланировать на 10 дней":
         user_state[chat_id] = {"state": "waiting_week_date"}
         await update.message.reply_text("С какой даты? (например: 25.03)")
 
@@ -153,10 +153,10 @@ async def _save_draft(update: Update, result: dict):
 
 
 async def _generate_week(update, start_date: str = ""):
-    """Генерирует 7 статей с указанной даты с отложенной публикацией."""
+    """Генерирует 10 статей с указанной даты с отложенной публикацией."""
     chat_id = update.message.chat_id
     cancel_flags[chat_id] = False
-    schedule = orchestrator.get_schedule_topics(start_date=start_date, days=7)
+    schedule = orchestrator.get_schedule_topics(start_date=start_date, days=10)
 
     for i, item in enumerate(schedule, 1):
         if cancel_flags.get(chat_id):
@@ -203,7 +203,7 @@ async def _generate_week(update, start_date: str = ""):
             await update.message.reply_text(f"⚠️ Не сохранилась: {topic}")
 
     await update.message.reply_text(
-        "🎉 Неделя готова! Все статьи запланированы в WordPress.",
+        "🎉 10 дней готовы! Все статьи запланированы в WordPress.",
         reply_markup=MAIN_KEYBOARD,
     )
 

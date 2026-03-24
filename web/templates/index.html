@@ -61,19 +61,19 @@
   </div>
   <div class="buttons">
     <button class="btn btn-primary" onclick="generateArticle()">✍️ Написать статью</button>
-    <button class="btn btn-plan" onclick="showPlan()">📋 План на неделю</button>
+    <button class="btn btn-plan" onclick="showPlan()">📋 План на 10 дней</button>
   </div>
 
   <hr class="divider">
 
   <!-- Неделя -->
-  <p class="section-title">Запланировать неделю</p>
+  <p class="section-title">Запланировать на 10 дней</p>
   <div class="date-row">
     <label>С даты:</label>
     <input type="text" id="start_date" placeholder="25.03 или 25.03.2026" />
   </div>
   <div class="buttons">
-    <button class="btn btn-week" onclick="generateWeek()">📅 Запланировать неделю (7 статей)</button>
+    <button class="btn btn-week" onclick="generateWeek()">📅 Запланировать на 10 дней (10 статей)</button>
     <button class="btn btn-stop" id="btn_stop" onclick="stopGeneration()" disabled>⏹ Стоп</button>
     <button class="btn btn-restart" onclick="restartServer()">🔄 Рестарт</button>
   </div>
