@@ -320,4 +320,36 @@ def _parse_generated_topics(raw: str) -> list[tuple[str, str]]:
 
 
 def get_plan() -> str:
-    return read_project_file("content-plan.md")
+    """Возвращает контент-план с отметками ✅/⬜ для каждой темы."""
+    plan_text = read_project_file("content-plan.md")
+    used = get_used_topics()
+    wp_titles = wp_posts.get_post_titles()
+
+    def _is_used(topic: str) -> bool:
+        if topic.lower() in used:
+            return True
+        topic_words = set(re.sub(r"[^\w\s]", " ", topic.lower()).split())
+        for title in wp_titles:
+            title_words = set(re.sub(r"[^\w\s]", " ", title.lower()).split())
+            if len(topic_words & title_words) >= 3:
+                return True
+        return False
+
+    lines = []
+    total = done = 0
+    for line in plan_text.splitlines():
+        if re.match(r"^\d+\.\s+", line):
+            topic = re.sub(r"^\d+\.\s+", "", line).strip()
+            total += 1
+            if _is_used(topic):
+                done += 1
+                lines.append(f"✅ {line}")
+            else:
+                lines.append(f"⬜ {line}")
+        else:
+            lines.append(line)
+
+    result = "\n".join(lines)
+    if total > 0:
+        result += f"\n\n📊 Написано: {done}/{total} тем ({total - done} осталось)"
+    return result

@@ -94,7 +94,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif text == "📋 План на неделю":
         plan = orchestrator.get_plan()
-        await update.message.reply_text(f"📋 Контент-план:\n\n{plan[:4000]}")
+        # Разбиваем на части по 4000 символов если план длинный
+        chunks = [plan[i:i+4000] for i in range(0, len(plan), 4000)]
+        for idx, chunk in enumerate(chunks):
+            prefix = "📋 Контент-план:\n\n" if idx == 0 else ""
+            await update.message.reply_text(f"{prefix}{chunk}")
 
     elif text == "📅 Запланировать неделю":
         user_state[chat_id] = {"state": "waiting_week_date"}
