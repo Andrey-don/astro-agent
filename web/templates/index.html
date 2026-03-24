@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Астро-Обзор Копирайтер</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a2e; color: #e0e0e0; min-height: 100vh; }
+  .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+  h1 { text-align: center; color: #7ec8e3; margin-bottom: 8px; font-size: 1.6rem; }
+  .subtitle { text-align: center; color: #888; margin-bottom: 24px; font-size: 0.9rem; }
+  .buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+  .btn { padding: 14px 16px; border: none; border-radius: 10px; font-size: 0.95rem; cursor: pointer; transition: all 0.2s; font-weight: 500; }
+  .btn:hover { opacity: 0.85; transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn-primary { background: #7ec8e3; color: #1a1a2e; }
+  .btn-news { background: #4a90d9; color: white; }
+  .btn-science { background: #7b68ee; color: white; }
+  .btn-mixed { background: #48cae4; color: #1a1a2e; }
+  .btn-week { background: #06d6a0; color: #1a1a2e; grid-column: 1 / -1; }
+  .btn-stop { background: #e63946; color: white; grid-column: 1 / -1; }
+  .btn-plan { background: #333; color: #ccc; grid-column: 1 / -1; border: 1px solid #444; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .input-row { display: flex; gap: 10px; margin-bottom: 20px; }
+  .input-row input { flex: 1; padding: 12px 16px; border-radius: 10px; border: 1px solid #444; background: #16213e; color: #e0e0e0; font-size: 0.95rem; }
+  .input-row input:focus { outline: none; border-color: #7ec8e3; }
+  .type-select { padding: 12px; border-radius: 10px; border: 1px solid #444; background: #16213e; color: #e0e0e0; font-size: 0.9rem; }
+  .log { background: #16213e; border-radius: 12px; padding: 16px; min-height: 200px; max-height: 500px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 0.88rem; line-height: 1.7; border: 1px solid #333; }
+  .log-line { padding: 2px 0; }
+  .log-line.success { color: #06d6a0; }
+  .log-line.error { color: #e63946; }
+  .log-line.link a { color: #7ec8e3; word-break: break-all; }
+  .log-line.info { color: #aaa; }
+  .log-empty { color: #555; font-style: italic; }
+  .date-row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+  .date-row input { padding: 12px 16px; border-radius: 10px; border: 1px solid #444; background: #16213e; color: #e0e0e0; font-size: 0.95rem; width: 180px; }
+  .date-row label { color: #888; font-size: 0.9rem; }
+  .section-title { color: #888; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .divider { border: none; border-top: 1px solid #2a2a4a; margin: 16px 0; }
+  .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #555; margin-right: 8px; }
+  .status-dot.active { background: #06d6a0; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🌌 Астро-Обзор Копирайтер</h1>
+  <p class="subtitle">Генератор статей для astro-obzor.ru</p>
+
+  <!-- Одиночная статья -->
+  <p class="section-title">Написать статью</p>
+  <div class="input-row">
+    <input type="text" id="topic" placeholder="Тема статьи..." />
+    <select class="type-select" id="article_type">
+      <option value="научпоп">🔭 Научпоп</option>
+      <option value="новостная">📰 Новостная</option>
+      <option value="смешанная">🌐 Смешанная</option>
+    </select>
+  </div>
+  <div class="buttons">
+    <button class="btn btn-primary" onclick="generateArticle()">✍️ Написать статью</button>
+    <button class="btn btn-plan" onclick="showPlan()">📋 План на неделю</button>
+  </div>
+
+  <hr class="divider">
+
+  <!-- Неделя -->
+  <p class="section-title">Запланировать неделю</p>
+  <div class="date-row">
+    <label>С даты:</label>
+    <input type="text" id="start_date" placeholder="25.03 или 25.03.2026" />
+  </div>
+  <div class="buttons">
+    <button class="btn btn-week" onclick="generateWeek()">📅 Запланировать неделю (7 статей)</button>
+    <button class="btn btn-stop" id="btn_stop" onclick="stopGeneration()" disabled>⏹ Стоп</button>
+  </div>
+
+  <hr class="divider">
+
+  <!-- Лог -->
+  <p class="section-title"><span class="status-dot" id="status_dot"></span>Журнал</p>
+  <div class="log" id="log">
+    <span class="log-empty">Здесь появятся результаты...</span>
+  </div>
+</div>
+
+<script>
+const SESSION_ID = 'web_' + Math.random().toString(36).slice(2);
+let eventSource = null;
+
+function log(text, type = '') {
+  const logEl = document.getElementById('log');
+  const empty = logEl.querySelector('.log-empty');
+  if (empty) empty.remove();
+
+  const line = document.createElement('div');
+  line.className = 'log-line ' + type;
+
+  if (text.startsWith('🔗 ')) {
+    const url = text.replace('🔗 ', '');
+    line.className += ' link';
+    line.innerHTML = '🔗 <a href="' + url + '" target="_blank">' + url + '</a>';
+  } else {
+    line.textContent = text;
+  }
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function clearLog() {
+  document.getElementById('log').innerHTML = '';
+}
+
+function setActive(active) {
+  document.getElementById('status_dot').className = 'status-dot' + (active ? ' active' : '');
+  document.getElementById('btn_stop').disabled = !active;
+  document.querySelectorAll('.btn:not(#btn_stop)').forEach(b => b.disabled = active);
+}
+
+function startStream() {
+  if (eventSource) eventSource.close();
+  eventSource = new EventSource('/stream/' + SESSION_ID);
+  eventSource.onmessage = function(e) {
+    if (e.data === '__PING__') return;
+    if (e.data === '__DONE__') {
+      eventSource.close();
+      setActive(false);
+      return;
+    }
+    const type = e.data.startsWith('✅') || e.data.startsWith('🎉') ? 'success'
+               : e.data.startsWith('❌') || e.data.startsWith('⚠️') ? 'error'
+               : e.data.startsWith('🔗') ? 'link' : 'info';
+    log(e.data, type);
+  };
+}
+
+async function generateArticle() {
+  const topic = document.getElementById('topic').value.trim();
+  if (!topic) { alert('Введи тему статьи'); return; }
+  clearLog();
+  setActive(true);
+  startStream();
+  await fetch('/generate', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({topic, article_type: document.getElementById('article_type').value, session_id: SESSION_ID})
+  });
+}
+
+async function generateWeek() {
+  const start_date = document.getElementById('start_date').value.trim();
+  if (!start_date) { alert('Введи дату начала (например: 25.03)'); return; }
+  clearLog();
+  setActive(true);
+  startStream();
+  await fetch('/generate_week', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({start_date, session_id: SESSION_ID})
+  });
+}
+
+async function stopGeneration() {
+  await fetch('/stop', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({session_id: SESSION_ID})
+  });
+  log('⏹ Сигнал остановки отправлен...', 'info');
+}
+
+async function showPlan() {
+  clearLog();
+  const r = await fetch('/plan');
+  const data = await r.json();
+  data.plan.split('\n').forEach(line => log(line, 'info'));
+}
+</script>
+</body>
+</html>

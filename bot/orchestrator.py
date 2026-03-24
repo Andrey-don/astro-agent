@@ -148,7 +148,7 @@ def _parse_focus_keyword(seo_data: str) -> str:
     if match:
         kw = match.group(1).strip()
         kw = re.sub(r"^[—\-]\s*", "", kw)
-        # Берём только первое слово если агент всё же написал фразу
+        # Берём только первое слово
         return kw.split()[0] if kw else ""
     # Фолбэк: первое слово из списка ключевых слов
     match = re.search(r"\*{0,2}Ключевые слова\*{0,2}[^\n]*\n\s*[-*]?\s*([^\n#*]{3,})", seo_data)
