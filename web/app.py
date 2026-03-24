@@ -159,9 +159,11 @@ def stop():
 
 @app.route("/restart", methods=["POST"])
 def restart():
+    import subprocess
     def do_restart():
         time.sleep(1)
-        os.execv(sys.executable, [sys.executable, "-m", "web.app"])
+        subprocess.Popen([sys.executable, "-m", "web.app"])
+        os._exit(0)
     threading.Thread(target=do_restart, daemon=True).start()
     return {"status": "restarting"}
 

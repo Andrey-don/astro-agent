@@ -177,7 +177,7 @@ async function restartServer() {
   log('🔄 Перезапуск сервера...', 'info');
   await fetch('/restart', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' });
   log('⏳ Подождите 3 секунды...', 'info');
-  setTimeout(() => { window.location.reload(); }, 3500);
+  setTimeout(() => { window.location.reload(); }, 5000);
 }
 
 async function showPlan() {
