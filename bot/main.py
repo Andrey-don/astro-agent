@@ -107,6 +107,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif text == "🔄 Рестарт":
         await update.message.reply_text("🔄 Перезапускаю бота...")
         import subprocess, sys, os
+        # Сохраняем chat_id чтобы новый процесс отправил подтверждение
+        with open(".restart_chat_id", "w") as f:
+            f.write(str(chat_id))
         subprocess.Popen([sys.executable, "-m", "bot.main"])
         os._exit(0)
 
@@ -199,6 +202,18 @@ async def _generate_week(update, start_date: str = ""):
     )
 
 
+async def on_startup(app):
+    """Отправляет сообщение об успешном рестарте если был запрос."""
+    if os.path.exists(".restart_chat_id"):
+        with open(".restart_chat_id") as f:
+            chat_id = f.read().strip()
+        os.remove(".restart_chat_id")
+        try:
+            await app.bot.send_message(chat_id=int(chat_id), text="✅ Бот перезапущен успешно!", reply_markup=MAIN_KEYBOARD)
+        except Exception:
+            pass
+
+
 def main():
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not token:
@@ -210,7 +225,7 @@ def main():
         write_timeout=60,
         pool_timeout=30,
     )
-    app = Application.builder().token(token).request(request).build()
+    app = Application.builder().token(token).request(request).post_init(on_startup).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     print("Астро-агент запущен.")
