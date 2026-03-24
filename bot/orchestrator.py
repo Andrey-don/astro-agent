@@ -227,6 +227,8 @@ def get_schedule_topics(start_date: str, days: int = 7) -> list[dict]:
         if line.startswith("### "):
             current_section = line[4:].strip()
             sections[current_section] = []
+        elif line.startswith("## ") or line.startswith("# "):
+            current_section = None
         elif current_section and re.match(r"^\d+\.\s+", line):
             topic = re.sub(r"^\d+\.\s+", "", line).strip()
             sections[current_section].append(topic)
