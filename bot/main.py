@@ -20,11 +20,12 @@ MAIN_KEYBOARD = ReplyKeyboardMarkup(
         ["✍️ Написать статью", "📋 План на неделю"],
         ["📰 Новостная", "🔭 Научпоп", "🌐 Смешанная"],
         ["📅 Запланировать неделю", "⏹ Стоп"],
+        ["🔄 Рестарт"],
     ],
     resize_keyboard=True,
 )
 
-BUTTON_TEXTS = {"✍️ Написать статью", "📋 План на неделю", "📰 Новостная", "🔭 Научпоп", "🌐 Смешанная", "📅 Запланировать неделю", "⏹ Стоп"}
+BUTTON_TEXTS = {"✍️ Написать статью", "📋 План на неделю", "📰 Новостная", "🔭 Научпоп", "🌐 Смешанная", "📅 Запланировать неделю", "⏹ Стоп", "🔄 Рестарт"}
 WEEK_STATES = {"waiting_week_date"}
 
 # user_state[chat_id] = {"state": "waiting_topic", "article_type": "..."}
@@ -102,6 +103,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif text == "⏹ Стоп":
         cancel_flags[chat_id] = True
         await update.message.reply_text("⏹ Останавливаю после текущей статьи...", reply_markup=MAIN_KEYBOARD)
+
+    elif text == "🔄 Рестарт":
+        await update.message.reply_text("🔄 Перезапускаю бота...")
+        import subprocess, sys, os
+        subprocess.Popen([sys.executable, "-m", "bot.main"])
+        os._exit(0)
 
 
 async def _save_draft(update: Update, result: dict):
