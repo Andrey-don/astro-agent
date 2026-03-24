@@ -2,8 +2,8 @@ import os
 import re
 import markdown as md_converter
 from datetime import datetime
-from bot.agents import researcher, writer, editor, seo, image_finder
-from bot.utils.file_loader import read_project_file, save_article, get_used_topics, mark_topic_used
+from bot.agents import researcher, writer, editor, seo, image_finder, topic_generator
+from bot.utils.file_loader import read_project_file, save_article, get_used_topics, mark_topic_used, append_topics_to_plan
 from bot.utils import wp_posts
 
 
@@ -265,6 +265,22 @@ def get_schedule_topics(start_date: str, days: int = 7) -> list[dict]:
     available = {s: [t for t in topics if t.lower() not in used and not _is_wp_duplicate(t)]
                  for s, topics in sections.items() if topics}
 
+    # Если свободных тем меньше нужного — генерируем новые
+    total_available = sum(len(v) for v in available.values())
+    if total_available < days:
+        print(f"[topic_generator] Осталось {total_available} тем, нужно {days}. Генерирую новые...")
+        all_used = list(used) + [t for sec in sections.values() for t in sec]
+        new_topics_raw = topic_generator.run(used_topics=all_used, count=14)
+        new_topics = _parse_generated_topics(new_topics_raw)
+        if new_topics:
+            append_topics_to_plan(new_topics)
+            # Добавляем в available
+            for section, topic in new_topics:
+                if topic.lower() not in used and not _is_wp_duplicate(topic):
+                    available.setdefault(section, []).append(topic)
+                    if section not in section_names:
+                        section_names.append(section)
+
     schedule = []
     sec_idx = 0
     day_offset = 0
@@ -286,6 +302,21 @@ def get_schedule_topics(start_date: str, days: int = 7) -> list[dict]:
             break
 
     return schedule
+
+
+def _parse_generated_topics(raw: str) -> list[tuple[str, str]]:
+    """Парсит ответ агента topic_generator в список (раздел, тема)."""
+    result = []
+    current_section = None
+    for line in raw.splitlines():
+        line = line.strip()
+        if line.startswith("Раздел:"):
+            current_section = line[7:].strip()
+        elif line.startswith("Тема:") and current_section:
+            topic = line[5:].strip()
+            if topic:
+                result.append((current_section, topic))
+    return result
 
 
 def get_plan() -> str:
