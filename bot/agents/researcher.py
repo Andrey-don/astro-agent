@@ -1,7 +1,7 @@
 from bot.utils.openrouter import call_agent
 from bot.utils.file_loader import read_project_file
 
-MODEL = "anthropic/claude-sonnet-4-6"
+MODEL = "anthropic/claude-haiku-4-5"
 TEMPERATURE = 0.4
 
 SYSTEM_PROMPT = """Ты — ресёрчер для сайта об астрономии и космосе.

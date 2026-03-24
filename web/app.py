@@ -95,10 +95,12 @@ def generate_week():
     message_queues[session_id] = queue.Queue()
     cancel_flags[session_id] = False
 
+    days = int(data.get("days", 10))
+
     def run():
         try:
-            schedule = orchestrator.get_schedule_topics(start_date=start_date, days=10)
-            send_msg(session_id, f"📅 Генерирую 10 статей с {start_date}... (~30 мин)")
+            schedule = orchestrator.get_schedule_topics(start_date=start_date, days=days)
+            send_msg(session_id, f"📅 Генерирую {days} статей с {start_date}... (~{days * 3} мин)")
             for i, item in enumerate(schedule, 1):
                 if cancel_flags.get(session_id):
                     send_msg(session_id, "⏹ Генерация остановлена.")
@@ -114,7 +116,11 @@ def generate_week():
                     result = orchestrator.generate_article(topic=topic, article_type=article_type)
                 except Exception as e:
                     logging.exception(f"Ошибка: {topic}")
-                    send_msg(session_id, f"❌ Ошибка: {topic}\n{e}")
+                    err = str(e)
+                    if "402" in err or "credits" in err.lower():
+                        send_msg(session_id, f"❌ Недостаточно баланса на OpenRouter! Пополни: openrouter.ai/settings/credits")
+                    else:
+                        send_msg(session_id, f"❌ Ошибка [{topic}]: {err[:200]}")
                     continue
 
                 draft = wp_posts.create_draft(
@@ -138,7 +144,7 @@ def generate_week():
                 else:
                     send_msg(session_id, f"⚠️ Не сохранилась: {topic}")
             else:
-                send_msg(session_id, "🎉 10 дней готовы! Все статьи запланированы в WordPress.")
+                send_msg(session_id, f"🎉 {days} {'день' if days == 1 else 'дня' if 2 <= days <= 4 else 'дней'} готовы! Все статьи запланированы в WordPress.")
         except Exception as e:
             logging.exception("Ошибка планировщика")
             send_msg(session_id, f"❌ Критическая ошибка: {e}")

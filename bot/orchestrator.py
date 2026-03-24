@@ -267,12 +267,16 @@ def get_schedule_topics(start_date: str, days: int = 7) -> list[dict]:
     available = {s: [t for t in topics if t.lower() not in used and not _is_wp_duplicate(t)]
                  for s, topics in sections.items() if topics}
 
-    # Если свободных тем меньше нужного — генерируем новые
+    # Если свободных тем меньше 10 — генерируем с запасом (10 на каждый раздел)
     total_available = sum(len(v) for v in available.values())
-    if total_available < days:
-        print(f"[topic_generator] Осталось {total_available} тем, нужно {days}. Генерирую новые...")
+    if total_available < 10:
+        print(f"[topic_generator] Осталось {total_available} тем (< 10). Генерирую по 10 на каждый раздел...")
         all_used = list(used) + [t for sec in sections.values() for t in sec]
-        new_topics_raw = topic_generator.run(used_topics=all_used, count=14)
+        new_topics_raw = topic_generator.run(
+            used_topics=all_used,
+            sections=section_names,
+            topics_per_section=10,
+        )
         new_topics = _parse_generated_topics(new_topics_raw)
         if new_topics:
             append_topics_to_plan(new_topics)

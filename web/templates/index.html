@@ -19,6 +19,7 @@
   .btn-science { background: #7b68ee; color: white; }
   .btn-mixed { background: #48cae4; color: #1a1a2e; }
   .btn-week { background: #06d6a0; color: #1a1a2e; grid-column: 1 / -1; }
+  .btn-test { background: #2a9d8f; color: white; }
   .btn-stop { background: #e63946; color: white; }
   .btn-restart { background: #f4a261; color: #1a1a2e; }
   .btn-plan { background: #333; color: #ccc; grid-column: 1 / -1; border: 1px solid #444; }
@@ -60,7 +61,7 @@
     </select>
   </div>
   <div class="buttons">
-    <button class="btn btn-primary" onclick="generateArticle()">✍️ Написать статью</button>
+    <button class="btn btn-primary" style="grid-column: 1 / -1" onclick="generateArticle()">✍️ Написать статью</button>
     <button class="btn btn-plan" onclick="showPlan()">📋 План на 10 дней</button>
   </div>
 
@@ -73,7 +74,10 @@
     <input type="text" id="start_date" placeholder="25.03 или 25.03.2026" />
   </div>
   <div class="buttons">
-    <button class="btn btn-week" onclick="generateWeek()">📅 Запланировать на 10 дней (10 статей)</button>
+    <button class="btn btn-week" onclick="generateWeek(10)">📅 Запланировать на 10 дней (10 статей)</button>
+  </div>
+  <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 20px;">
+    <button class="btn btn-test" onclick="generateWeek(2)">🧪 Тест (2 статьи)</button>
     <button class="btn btn-stop" id="btn_stop" onclick="stopGeneration()" disabled>⏹ Стоп</button>
     <button class="btn btn-restart" onclick="restartServer()">🔄 Рестарт</button>
   </div>
@@ -159,7 +163,7 @@ async function generateArticle() {
   });
 }
 
-async function generateWeek() {
+async function generateWeek(days = 10) {
   const start_date = document.getElementById('start_date').value.trim();
   if (!start_date) { alert('Введи дату начала (например: 25.03)'); return; }
   localStorage.removeItem('restarted');
@@ -169,7 +173,7 @@ async function generateWeek() {
   await fetch('/generate_week', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({start_date, session_id: SESSION_ID})
+    body: JSON.stringify({start_date, days, session_id: SESSION_ID})
   });
 }
 
