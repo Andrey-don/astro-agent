@@ -1,4 +1,6 @@
 import os
+import sys
+import time
 import asyncio
 import threading
 import queue
@@ -153,6 +155,15 @@ def stop():
     session_id = data.get("session_id", "default")
     cancel_flags[session_id] = True
     return {"status": "stopped"}
+
+
+@app.route("/restart", methods=["POST"])
+def restart():
+    def do_restart():
+        time.sleep(1)
+        os.execv(sys.executable, [sys.executable, "-m", "web.app"])
+    threading.Thread(target=do_restart, daemon=True).start()
+    return {"status": "restarting"}
 
 
 @app.route("/stream/<session_id>")

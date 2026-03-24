@@ -19,7 +19,8 @@
   .btn-science { background: #7b68ee; color: white; }
   .btn-mixed { background: #48cae4; color: #1a1a2e; }
   .btn-week { background: #06d6a0; color: #1a1a2e; grid-column: 1 / -1; }
-  .btn-stop { background: #e63946; color: white; grid-column: 1 / -1; }
+  .btn-stop { background: #e63946; color: white; }
+  .btn-restart { background: #f4a261; color: #1a1a2e; }
   .btn-plan { background: #333; color: #ccc; grid-column: 1 / -1; border: 1px solid #444; }
   .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   .input-row { display: flex; gap: 10px; margin-bottom: 20px; }
@@ -74,6 +75,7 @@
   <div class="buttons">
     <button class="btn btn-week" onclick="generateWeek()">📅 Запланировать неделю (7 статей)</button>
     <button class="btn btn-stop" id="btn_stop" onclick="stopGeneration()" disabled>⏹ Стоп</button>
+    <button class="btn btn-restart" onclick="restartServer()">🔄 Рестарт</button>
   </div>
 
   <hr class="divider">
@@ -168,6 +170,14 @@ async function stopGeneration() {
     body: JSON.stringify({session_id: SESSION_ID})
   });
   log('⏹ Сигнал остановки отправлен...', 'info');
+}
+
+async function restartServer() {
+  clearLog();
+  log('🔄 Перезапуск сервера...', 'info');
+  await fetch('/restart', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' });
+  log('⏳ Подождите 3 секунды...', 'info');
+  setTimeout(() => { window.location.reload(); }, 3500);
 }
 
 async function showPlan() {
