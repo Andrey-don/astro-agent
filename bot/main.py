@@ -19,13 +19,13 @@ MAIN_KEYBOARD = ReplyKeyboardMarkup(
     [
         ["✍️ Написать статью", "📋 План на 10 дней"],
         ["📰 Новостная", "🔭 Научпоп", "🌐 Смешанная"],
-        ["📅 Запланировать на 10 дней", "⏹ Стоп"],
-        ["🔄 Рестарт"],
+        ["📅 Запланировать на 10 дней", "🧪 Тест (2 статьи)"],
+        ["⏹ Стоп", "🔄 Рестарт"],
     ],
     resize_keyboard=True,
 )
 
-BUTTON_TEXTS = {"✍️ Написать статью", "📋 План на 10 дней", "📰 Новостная", "🔭 Научпоп", "🌐 Смешанная", "📅 Запланировать на 10 дней", "⏹ Стоп", "🔄 Рестарт"}
+BUTTON_TEXTS = {"✍️ Написать статью", "📋 План на 10 дней", "📰 Новостная", "🔭 Научпоп", "🌐 Смешанная", "📅 Запланировать на 10 дней", "🧪 Тест (2 статьи)", "⏹ Стоп", "🔄 Рестарт"}
 WEEK_STATES = {"waiting_week_date"}
 
 # user_state[chat_id] = {"state": "waiting_topic", "article_type": "..."}
@@ -47,11 +47,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.message.chat_id
     state_data = user_state.get(chat_id, {})
 
-    # Ожидание даты для планировщика недели
+    # Ожидание даты для планировщика
     if state_data.get("state") == "waiting_week_date" and text not in BUTTON_TEXTS:
+        days = state_data.get("days", 10)
         user_state.pop(chat_id)
-        await update.message.reply_text(f"Генерирую 10 статей с {text}... ⏳ (~30 мин)")
-        await _generate_week(update, start_date=text)
+        mins = days * 3
+        await update.message.reply_text(f"Генерирую {days} статей с {text}... ⏳ (~{mins} мин)")
+        await _generate_week(update, start_date=text, days=days)
         return
 
     # Ожидание темы — но если пользователь нажал кнопку, сбрасываем и обрабатываем кнопку
@@ -101,7 +103,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"{prefix}{chunk}")
 
     elif text == "📅 Запланировать на 10 дней":
-        user_state[chat_id] = {"state": "waiting_week_date"}
+        user_state[chat_id] = {"state": "waiting_week_date", "days": 10}
+        await update.message.reply_text("С какой даты? (например: 25.03)")
+
+    elif text == "🧪 Тест (2 статьи)":
+        user_state[chat_id] = {"state": "waiting_week_date", "days": 2}
         await update.message.reply_text("С какой даты? (например: 25.03)")
 
     elif text == "⏹ Стоп":
@@ -152,11 +158,11 @@ async def _save_draft(update: Update, result: dict):
 
 
 
-async def _generate_week(update, start_date: str = ""):
-    """Генерирует 10 статей с указанной даты с отложенной публикацией."""
+async def _generate_week(update, start_date: str = "", days: int = 10):
+    """Генерирует статьи с указанной даты с отложенной публикацией."""
     chat_id = update.message.chat_id
     cancel_flags[chat_id] = False
-    schedule = orchestrator.get_schedule_topics(start_date=start_date, days=10)
+    schedule = orchestrator.get_schedule_topics(start_date=start_date, days=days)
 
     for i, item in enumerate(schedule, 1):
         if cancel_flags.get(chat_id):
@@ -176,7 +182,11 @@ async def _generate_week(update, start_date: str = ""):
             )
         except Exception as e:
             logging.exception(f"Ошибка генерации '{topic}'")
-            await update.message.reply_text(f"❌ Ошибка: {topic}\n{e}")
+            err = str(e)
+            if "402" in err or "credits" in err.lower():
+                await update.message.reply_text("❌ Недостаточно баланса OpenRouter!\nПополни: openrouter.ai/settings/credits")
+            else:
+                await update.message.reply_text(f"❌ Ошибка [{topic}]: {err[:200]}")
             continue
 
         draft = await asyncio.to_thread(
@@ -202,8 +212,9 @@ async def _generate_week(update, start_date: str = ""):
         else:
             await update.message.reply_text(f"⚠️ Не сохранилась: {topic}")
 
+    days_word = "день" if days == 1 else "дня" if 2 <= days <= 4 else "дней"
     await update.message.reply_text(
-        "🎉 10 дней готовы! Все статьи запланированы в WordPress.",
+        f"🎉 {days} {days_word} готовы! Все статьи запланированы в WordPress.",
         reply_markup=MAIN_KEYBOARD,
     )
 
