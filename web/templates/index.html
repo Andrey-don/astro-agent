@@ -89,6 +89,14 @@
 
 <script>
 const SESSION_ID = 'web_' + Math.random().toString(36).slice(2);
+
+// Показываем сообщение после рестарта
+if (localStorage.getItem('restarted')) {
+  localStorage.removeItem('restarted');
+  document.addEventListener('DOMContentLoaded', () => {
+    log('✅ Сервер перезапущен успешно! Можно работать.', 'success');
+  });
+}
 let eventSource = null;
 
 function log(text, type = '') {
@@ -140,6 +148,7 @@ function startStream() {
 async function generateArticle() {
   const topic = document.getElementById('topic').value.trim();
   if (!topic) { alert('Введи тему статьи'); return; }
+  localStorage.removeItem('restarted');
   clearLog();
   setActive(true);
   startStream();
@@ -153,6 +162,7 @@ async function generateArticle() {
 async function generateWeek() {
   const start_date = document.getElementById('start_date').value.trim();
   if (!start_date) { alert('Введи дату начала (например: 25.03)'); return; }
+  localStorage.removeItem('restarted');
   clearLog();
   setActive(true);
   startStream();
@@ -177,7 +187,10 @@ async function restartServer() {
   log('🔄 Перезапуск сервера...', 'info');
   await fetch('/restart', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' });
   log('⏳ Подождите 3 секунды...', 'info');
-  setTimeout(() => { window.location.reload(); }, 5000);
+  setTimeout(() => {
+    localStorage.setItem('restarted', '1');
+    window.location.reload();
+  }, 4000);
 }
 
 async function showPlan() {
