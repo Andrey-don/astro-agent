@@ -33,3 +33,20 @@
 ```
 python -m bot.main
 ```
+
+## SEO-агент (claude-seo)
+
+Установлен глобально: `C:\Users\profi\.claude\skills\seo\`
+Работает в любом проекте Claude Code.
+
+| Команда | Что делает |
+|---------|-----------|
+| `/seo audit https://astro-obzor.ru` | Полный аудит сайта |
+| `/seo page <url>` | Анализ одной страницы |
+| `/seo schema <url>` | Schema-разметка |
+| `/seo technical <url>` | Технический SEO |
+| `/seo content <url>` | Качество контента (E-E-A-T) |
+| `/seo geo <url>` | Оптимизация для AI-поисковиков |
+| `/seo sitemap <url>` | Анализ sitemap |
+
+Аудит astro-obzor.ru проведён 26.03.2026 — основные проблемы исправлены.
