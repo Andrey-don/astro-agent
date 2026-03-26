@@ -231,13 +231,17 @@ async def _check_published(update: Update):
     """Проверяет статьи опубликованные сегодня и отправляет уведомление."""
     posts = await asyncio.to_thread(wp_posts.get_published_today)
     if posts:
+        from datetime import date
+        today = date.today().strftime("%d.%m.%Y")
         lines = "\n\n".join(
             f"📰 «{p['title']}»\n🔗 {p['link']}\n🕙 {p['date'][11:16]}"
             for p in posts
         )
-        await update.message.reply_text(f"✅ Сегодня опубликовано {len(posts)} статья(-и):\n\n{lines}", reply_markup=MAIN_KEYBOARD)
+        await update.message.reply_text(f"✅ Сегодня {today} опубликовано {len(posts)} статья(-и):\n\n{lines}", reply_markup=MAIN_KEYBOARD)
     else:
-        await update.message.reply_text("ℹ️ Сегодня публикаций не было.", reply_markup=MAIN_KEYBOARD)
+        from datetime import date
+        today = date.today().strftime("%d.%m.%Y")
+        await update.message.reply_text(f"ℹ️ Сегодня {today} публикаций не было.", reply_markup=MAIN_KEYBOARD)
 
 
 async def _scheduled_check(context):
@@ -245,13 +249,17 @@ async def _scheduled_check(context):
     chat_id = context.job.data
     posts = await asyncio.to_thread(wp_posts.get_published_today)
     if posts:
+        from datetime import date
+        today = date.today().strftime("%d.%m.%Y")
         lines = "\n\n".join(
             f"📰 «{p['title']}»\n🔗 {p['link']}\n🕙 {p['date'][11:16]}"
             for p in posts
         )
-        await context.bot.send_message(chat_id=chat_id, text=f"✅ Сегодня опубликовано {len(posts)} статья(-и):\n\n{lines}")
+        await context.bot.send_message(chat_id=chat_id, text=f"✅ Сегодня {today} опубликовано {len(posts)} статья(-и):\n\n{lines}")
     else:
-        await context.bot.send_message(chat_id=chat_id, text="ℹ️ Сегодня публикаций не было (проверка 10:15).")
+        from datetime import date
+        today = date.today().strftime("%d.%m.%Y")
+        await context.bot.send_message(chat_id=chat_id, text=f"ℹ️ Сегодня {today} публикаций не было (проверка 10:15).")
 
 
 async def on_startup(app):
