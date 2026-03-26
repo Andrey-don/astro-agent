@@ -20,12 +20,13 @@ MAIN_KEYBOARD = ReplyKeyboardMarkup(
         ["✍️ Написать статью", "📋 План на 10 дней"],
         ["📰 Новостная", "🔭 Научпоп", "🌐 Смешанная"],
         ["📅 Запланировать на 10 дней", "🧪 Тест (2 статьи)"],
-        ["⏹ Стоп", "🔄 Рестарт"],
+        ["🔔 Проверить публикацию", "⏹ Стоп"],
+        ["🔄 Рестарт"],
     ],
     resize_keyboard=True,
 )
 
-BUTTON_TEXTS = {"✍️ Написать статью", "📋 План на 10 дней", "📰 Новостная", "🔭 Научпоп", "🌐 Смешанная", "📅 Запланировать на 10 дней", "🧪 Тест (2 статьи)", "⏹ Стоп", "🔄 Рестарт"}
+BUTTON_TEXTS = {"✍️ Написать статью", "📋 План на 10 дней", "📰 Новостная", "🔭 Научпоп", "🌐 Смешанная", "📅 Запланировать на 10 дней", "🧪 Тест (2 статьи)", "🔔 Проверить публикацию", "⏹ Стоп", "🔄 Рестарт"}
 WEEK_STATES = {"waiting_week_date"}
 
 # user_state[chat_id] = {"state": "waiting_topic", "article_type": "..."}
@@ -40,6 +41,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Выбери действие или напиши тему:",
         reply_markup=MAIN_KEYBOARD,
     )
+
+
+async def myid(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(f"Твой chat_id: `{update.message.chat_id}`", parse_mode="Markdown")
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -113,6 +118,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif text == "⏹ Стоп":
         cancel_flags[chat_id] = True
         await update.message.reply_text("⏹ Останавливаю после текущей статьи...", reply_markup=MAIN_KEYBOARD)
+
+    elif text == "🔔 Проверить публикацию":
+        await _check_published(update)
 
     elif text == "🔄 Рестарт":
         await update.message.reply_text("🔄 Перезапускаю бота... (~5 сек)")
@@ -219,16 +227,55 @@ async def _generate_week(update, start_date: str = "", days: int = 10):
     )
 
 
+async def _check_published(update: Update):
+    """Проверяет статьи опубликованные сегодня и отправляет уведомление."""
+    posts = await asyncio.to_thread(wp_posts.get_published_today)
+    if posts:
+        lines = "\n\n".join(
+            f"📰 «{p['title']}»\n🔗 {p['link']}\n🕙 {p['date'][11:16]}"
+            for p in posts
+        )
+        await update.message.reply_text(f"✅ Сегодня опубликовано {len(posts)} статья(-и):\n\n{lines}", reply_markup=MAIN_KEYBOARD)
+    else:
+        await update.message.reply_text("ℹ️ Сегодня публикаций не было.", reply_markup=MAIN_KEYBOARD)
+
+
+async def _scheduled_check(context):
+    """Автопроверка публикаций в 10:15 — отправляет уведомление в чат."""
+    chat_id = context.job.data
+    posts = await asyncio.to_thread(wp_posts.get_published_today)
+    if posts:
+        lines = "\n\n".join(
+            f"📰 «{p['title']}»\n🔗 {p['link']}\n🕙 {p['date'][11:16]}"
+            for p in posts
+        )
+        await context.bot.send_message(chat_id=chat_id, text=f"✅ Сегодня опубликовано {len(posts)} статья(-и):\n\n{lines}")
+    else:
+        await context.bot.send_message(chat_id=chat_id, text="ℹ️ Сегодня публикаций не было (проверка 10:15).")
+
+
 async def on_startup(app):
     """Отправляет сообщение об успешном рестарте если был запрос."""
+    chat_id_str = None
     if os.path.exists(".restart_chat_id"):
         with open(".restart_chat_id") as f:
-            chat_id = f.read().strip()
+            chat_id_str = f.read().strip()
         os.remove(".restart_chat_id")
         try:
-            await app.bot.send_message(chat_id=int(chat_id), text="✅ Бот перезапущен успешно!", reply_markup=MAIN_KEYBOARD)
+            await app.bot.send_message(chat_id=int(chat_id_str), text="✅ Бот перезапущен успешно!", reply_markup=MAIN_KEYBOARD)
         except Exception:
             pass
+
+    # Планировщик: проверка публикаций каждый день в 10:15 (UTC+3 = 07:15 UTC)
+    notify_chat_id = int(chat_id_str or os.getenv("NOTIFY_CHAT_ID", "0"))
+    if notify_chat_id and app.job_queue:
+        import datetime
+        app.job_queue.run_daily(
+            _scheduled_check,
+            time=datetime.time(hour=7, minute=15),  # 10:15 МСК = 07:15 UTC
+            data=notify_chat_id,
+            name="daily_publish_check",
+        )
 
 
 def _delayed_restart():
@@ -251,6 +298,7 @@ def main():
     )
     app = Application.builder().token(token).request(request).post_init(on_startup).build()
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("myid", myid))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     print("Астро-агент запущен.")
     app.run_polling()

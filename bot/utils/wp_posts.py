@@ -267,3 +267,30 @@ def create_draft(
     except Exception as e:
         logging.warning(f"wp_posts: не удалось создать черновик: {e}")
         return None
+
+
+def get_published_today() -> list[dict]:
+    """Возвращает статьи опубликованные сегодня: [{title, link}, ...]"""
+    if not WP_URL:
+        return []
+    from datetime import date
+    today = date.today().isoformat()
+    try:
+        resp = requests.get(
+            f"{WP_URL}/wp-json/wp/v2/posts",
+            params={
+                "status": "publish",
+                "after": f"{today}T00:00:00",
+                "before": f"{today}T23:59:59",
+                "per_page": 10,
+                "_fields": "title,link,date",
+            },
+            auth=_auth(),
+            timeout=15,
+        )
+        resp.raise_for_status()
+        posts = resp.json()
+        return [{"title": p["title"]["rendered"], "link": p["link"], "date": p["date"]} for p in posts]
+    except Exception as e:
+        logging.warning(f"wp_posts: get_published_today: {e}")
+        return []
