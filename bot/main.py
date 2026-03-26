@@ -44,7 +44,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def myid(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(f"Твой chat_id: `{update.message.chat_id}`", parse_mode="Markdown")
+    await update.message.reply_text(f"Твой chat_id: {update.message.chat_id}")
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
