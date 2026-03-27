@@ -41,9 +41,24 @@ def _is_allowed(update: Update) -> bool:
     return update.message.chat_id == ALLOWED_CHAT_ID
 
 
+async def _notify_unauthorized(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    chat_id = update.message.chat_id
+    text = update.message.text or ""
+    msg = (
+        f"⚠️ Попытка доступа к боту!\n"
+        f"ID: {chat_id}\n"
+        f"Имя: {user.full_name}\n"
+        f"Username: @{user.username or 'нет'}\n"
+        f"Сообщение: {text[:100]}"
+    )
+    await context.bot.send_message(chat_id=ALLOWED_CHAT_ID, text=msg)
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_allowed(update):
         await update.message.reply_text("Доступ запрещён.")
+        await _notify_unauthorized(update, context)
         return
     await update.message.reply_text(
         "Привет. Я пишу статьи для astro-obzor.ru.\n\n"
@@ -59,6 +74,7 @@ async def myid(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_allowed(update):
         await update.message.reply_text("Доступ запрещён.")
+        await _notify_unauthorized(update, context)
         return
     text = update.message.text
     chat_id = update.message.chat_id
