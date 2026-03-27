@@ -15,6 +15,8 @@ from bot.utils.file_loader import mark_topic_used
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
 
+ALLOWED_CHAT_ID = int(os.getenv("NOTIFY_CHAT_ID", "0"))
+
 MAIN_KEYBOARD = ReplyKeyboardMarkup(
     [
         ["✍️ Написать статью", "📋 План на 10 дней"],
@@ -35,7 +37,14 @@ user_state: dict = {}
 cancel_flags: dict = {}
 
 
+def _is_allowed(update: Update) -> bool:
+    return update.message.chat_id == ALLOWED_CHAT_ID
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _is_allowed(update):
+        await update.message.reply_text("Доступ запрещён.")
+        return
     await update.message.reply_text(
         "Привет. Я пишу статьи для astro-obzor.ru.\n\n"
         "Выбери действие или напиши тему:",
@@ -48,6 +57,9 @@ async def myid(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _is_allowed(update):
+        await update.message.reply_text("Доступ запрещён.")
+        return
     text = update.message.text
     chat_id = update.message.chat_id
     state_data = user_state.get(chat_id, {})
