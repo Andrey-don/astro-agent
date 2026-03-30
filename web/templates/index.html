@@ -22,6 +22,7 @@
   .btn-test { background: #2a9d8f; color: white; }
   .btn-stop { background: #e63946; color: white; }
   .btn-restart { background: #f4a261; color: #1a1a2e; }
+  .btn-check { background: #2d6a4f; color: white; grid-column: 1 / -1; }
   .btn-plan { background: #333; color: #ccc; grid-column: 1 / -1; border: 1px solid #444; }
   .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
   .input-row { display: flex; gap: 10px; margin-bottom: 20px; }
@@ -80,6 +81,10 @@
     <button class="btn btn-test" onclick="generateWeek(2)">🧪 Тест (2 статьи)</button>
     <button class="btn btn-stop" id="btn_stop" onclick="stopGeneration()" disabled>⏹ Стоп</button>
     <button class="btn btn-restart" onclick="restartServer()">🔄 Рестарт</button>
+  </div>
+
+  <div style="display: grid; gap: 10px; margin-bottom: 20px;">
+    <button class="btn btn-check" onclick="checkPublished()">🔔 Проверить публикацию</button>
   </div>
 
   <hr class="divider">
@@ -202,6 +207,21 @@ async function showPlan() {
   const r = await fetch('/plan');
   const data = await r.json();
   data.plan.split('\n').forEach(line => log(line, 'info'));
+}
+
+async function checkPublished() {
+  clearLog();
+  const r = await fetch('/check_published');
+  const data = await r.json();
+  if (data.posts.length === 0) {
+    log(`ℹ️ Сегодня ${data.today} публикаций не найдено`, 'info');
+  } else {
+    log(`✅ Сегодня ${data.today} опубликовано ${data.posts.length} статья(-и):`, 'success');
+    data.posts.forEach(p => {
+      log(`📰 ${p.title}`, 'info');
+      log(`🔗 ${p.link}`, 'link');
+    });
+  }
 }
 </script>
 </body>

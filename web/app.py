@@ -163,6 +163,15 @@ def stop():
     return {"status": "stopped"}
 
 
+@app.route("/check_published", methods=["GET"])
+def check_published():
+    from datetime import date
+    today = date.today()
+    posts = wp_posts.get_published_today()
+    today_str = today.strftime("%d.%m.%Y")
+    return {"today": today_str, "posts": posts}
+
+
 @app.route("/restart", methods=["POST"])
 def restart():
     import subprocess
