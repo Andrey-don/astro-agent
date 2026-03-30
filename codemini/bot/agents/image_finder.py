@@ -58,7 +58,7 @@ def insert_image_after_heading(article: str, heading: str, url: str, title: str)
     return article.replace(heading_md + "\n", heading_md + image_md, 1)
 
 
-def run(article: str) -> str:
+def run(article: str) -> tuple[str, int | None]:
     raw = call_agent(EXTRACT_PROMPT, f"СТАТЬЯ:\n{article}", MODEL, TEMPERATURE)
 
     try:
@@ -66,9 +66,10 @@ def run(article: str) -> str:
         positions = json.loads(cleaned)
     except Exception as e:
         logging.warning(f"codemini image_finder: не удалось разобрать JSON: {e}")
-        return article
+        return article, None
 
     result = article
+    first_media_id = None
     for pos in positions:
         query = pos.get("search_query", "").strip()
         heading = pos.get("after_heading", "").strip()
@@ -77,15 +78,16 @@ def run(article: str) -> str:
 
         image = search_unsplash_image(query)
         if not image:
-            # Fallback запрос
             image = search_unsplash_image("kids programming education")
 
         if image:
-            wp_url = upload_image_from_url(image["url"], image["title"])
+            wp_url, media_id = upload_image_from_url(image["url"], image["title"])
+            if first_media_id is None and media_id:
+                first_media_id = media_id
             final_url = wp_url if wp_url else image["url"]
             result = insert_image_after_heading(result, heading, final_url, image["title"])
             logging.info(f"codemini image_finder: вставлено '{image['title']}' после '{heading}'")
         else:
             logging.warning(f"codemini image_finder: не найдено изображение для '{query}'")
 
-    return result
+    return result, first_media_id

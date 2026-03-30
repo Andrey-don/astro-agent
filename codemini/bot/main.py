@@ -165,6 +165,8 @@ async def _save_draft(update: Update, result: dict):
         result.get("meta_description", ""),
         result.get("focus_keyword", ""),
         result.get("slug", ""),
+        "",
+        result.get("featured_media_id"),
     )
     if draft:
         wp_url = os.getenv("CODEMINI_WP_URL", "").rstrip("/")
@@ -219,6 +221,7 @@ async def _generate_week(update, start_date: str = "", days: int = 10):
             result.get("focus_keyword", ""),
             result.get("slug", ""),
             pub_date,
+            result.get("featured_media_id"),
         )
         if draft:
             wp_url = os.getenv("CODEMINI_WP_URL", "").rstrip("/")

@@ -42,9 +42,11 @@ def upload_image_from_url(image_url: str, title: str = "") -> str | None:
             timeout=30,
         )
         response.raise_for_status()
-        wp_url = response.json().get("source_url")
+        data = response.json()
+        wp_url = data.get("source_url")
+        media_id = data.get("id")
         logging.info(f"codemini wp_media: загружено → {wp_url}")
-        return wp_url
+        return wp_url, media_id
     except Exception as e:
         logging.warning(f"codemini wp_media: ошибка загрузки в WordPress: {e}")
-        return None
+        return None, None

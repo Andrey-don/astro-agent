@@ -26,7 +26,7 @@ def generate_article(topic: str, article_type: str = "обзор") -> dict:
     wp_categories = [c["name"] for c in wp_posts.get_categories() if c["name"] != "Без рубрики"]
 
     print(f"[4/5] Подбираем изображения из Unsplash...")
-    edited = image_finder.run(edited)
+    edited, featured_media_id = image_finder.run(edited)
 
     print(f"[5/6] SEO-агент анализирует...")
     seo_draft = seo.run(edited, wp_categories or None)
@@ -79,6 +79,7 @@ def generate_article(topic: str, article_type: str = "обзор") -> dict:
         "slug": _parse_slug(seo_data),
         "category_id": category_id,
         "category_name": category_name,
+        "featured_media_id": featured_media_id,
         "file": filepath,
     }
 

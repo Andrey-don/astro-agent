@@ -112,6 +112,7 @@ def create_draft(
     focus_keyword: str = "",
     slug: str = "",
     publish_date: str = "",
+    featured_media_id: int | None = None,
 ) -> dict | None:
     if not WP_URL:
         return None
@@ -126,6 +127,8 @@ def create_draft(
         payload["slug"] = slug
     if category_id:
         payload["categories"] = [category_id]
+    if featured_media_id:
+        payload["featured_media"] = featured_media_id
 
     yoast_meta = {}
     if meta_description:
